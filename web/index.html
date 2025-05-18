@@ -1,0 +1,2320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Cloning Management Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .recording-pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+        
+        .processing-spin {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-healthy { background-color: #22c55e; }
+        .status-warning { background-color: #eab308; }
+        .status-error { background-color: #ef4444; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+                <i class="fas fa-microphone-alt mr-3 text-blue-600"></i>
+                Voice Cloning Management Dashboard
+            </h1>
+            <p class="text-gray-600 mt-2">Create, manage, and deploy voice clones for your Asterisk PBX system</p>
+        </header>
+
+        <!-- System Health -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2">System Status</h3>
+                <div class="flex items-center" id="systemStatus">
+                    <span class="status-dot status-healthy"></span>
+                    <span class="text-lg font-bold text-gray-800">Healthy</span>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2">Total Voices</h3>
+                <div class="text-2xl font-bold text-gray-800" id="totalVoices">-</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2">Active Voice</h3>
+                <div class="text-2xl font-bold text-blue-600" id="activeVoice">None</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-sm font-semibold text-gray-600 mb-2">Processing Queue</h3>
+                <div class="text-2xl font-bold text-gray-800" id="processingQueue">0</div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <button id="voicesTab" class="tab-button px-1 py-4 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+                        <i class="fas fa-list mr-2"></i>Voices
+                    </button>
+                    <button id="createTab" class="tab-button px-1 py-4 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+                        <i class="fas fa-plus mr-2"></i>Create Voice
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Voices Tab Content -->
+        <div id="voicesContent" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md">
+                <!-- Refresh button and status -->
+                <div class="flex justify-between items-center p-4 border-b border-gray-200">
+                    <h2 class="text-lg font-medium text-gray-900">Available Voices</h2>
+                    <button id="refreshVoices" class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 inline-flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i> Refresh
+                    </button>
+                </div>
+                
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voice Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Samples</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Processed</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="voicesTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Voices will be loaded here dynamically -->
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                                <div class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+                                <span class="ml-2">Loading voices...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <!-- No voices message (initially hidden) -->
+                <div id="noVoicesMessage" class="hidden p-8 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">No voices created yet</h3>
+                    <p class="mt-1 text-sm text-gray-500">Create your first voice to get started with voice cloning.</p>
+                    <div class="mt-6">
+                        <button id="createFirstVoice" type="button" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                            <i class="fas fa-plus -ml-1 mr-2"></i>
+                            Create Voice
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Voice Tab Content -->
+        <div id="createContent" class="tab-content hidden">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Create New Voice</h2>
+                
+                <!-- Voice Name Input -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Voice Name</label>
+                    <input type="text" id="voiceName" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter voice name">
+                </div>
+
+                <!-- Recording Section -->
+                
+				<div class="mb-6">
+					<h3 class="text-lg font-semibold text-gray-800 mb-4">Add Voice Samples</h3>
+					<div class="bg-gray-50 rounded-lg p-6">
+						<!-- Sample Input Methods Tabs -->
+						<div class="mb-4">
+							<div class="border-b border-gray-200">
+								<nav class="-mb-px flex space-x-8">
+									<button id="recordingTab" class="voice-input-tab px-1 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600">
+										<i class="fas fa-microphone mr-2"></i>Record
+									</button>
+									<button id="uploadTab" class="voice-input-tab px-1 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+										<i class="fas fa-upload mr-2"></i>Upload Files
+									</button>
+									<button id="samplesTab" class="voice-input-tab px-1 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+										<i class="fas fa-list mr-2"></i>Samples
+									</button>
+									<button id="processedTab" class="voice-input-tab px-1 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+										<i class="fas fa-check-circle mr-2"></i>Processed Files
+									</button>
+								</nav>
+							</div>
+						</div>
+
+						<!-- Recording Section -->
+						<div id="recordingSection" class="voice-input-section">
+							<!-- Sample Text -->
+							<div class="mb-4">
+								<label class="block text-sm font-medium text-gray-700 mb-2">Sample Text</label>
+								<div class="relative">
+									<select id="sampleText" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+										<option value="The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet.">The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet.</option>
+										<option value="Pack my box with five dozen liquor jugs. This phrase also uses all letters of the alphabet.">Pack my box with five dozen liquor jugs. This phrase also uses all letters of the alphabet.</option>
+										<option value="She sells seashells by the seashore. The shells she sells are surely seashells.">She sells seashells by the seashore. The shells she sells are surely seashells.</option>
+										<option value="Technology advances rapidly, transforming our daily lives with innovations and digital solutions.">Technology advances rapidly, transforming our daily lives with innovations and digital solutions.</option>
+									</select>
+								</div>
+							</div>
+
+							<!-- Recording Controls -->
+							<div class="text-center mb-6">
+								<button id="recordButton" class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+									<i class="fas fa-microphone mr-2"></i>
+									<span id="recordButtonText">Start Recording</span>
+								</button>
+							</div>
+
+							<!-- Recording Status -->
+							<div id="recordingStatus" class="text-center text-gray-600 mb-4 hidden">
+								Recording... <span id="recordingTimer">0:00</span>
+							</div>
+
+							<!-- Audio Preview -->
+							<div id="audioPreview" class="hidden mb-4">
+								<audio id="audioPlayer" controls class="w-full">
+									<source id="audioSource" type="audio/wav">
+									Your browser does not support the audio element.
+								</audio>
+							</div>
+
+							<!-- Save Button -->
+							<div class="text-center">
+								<button id="saveRecording" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 hidden">
+									<i class="fas fa-save mr-2"></i>
+									Save Recording
+								</button>
+							</div>
+						</div>
+
+						<!-- Upload Section -->
+						<div id="uploadSection" class="voice-input-section hidden">
+							<!-- File Upload Area -->
+							<div class="mb-6">
+								<label class="block text-sm font-medium text-gray-700 mb-2">Upload Voice Samples</label>
+								<div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+									<div class="space-y-1 text-center">
+										<svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+											<path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+										</svg>
+										<div class="flex text-sm text-gray-600">
+											<label for="fileUpload" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+												<span>Upload audio files</span>
+												<input id="fileUpload" name="fileUpload" type="file" class="sr-only" accept="audio/*" multiple>
+											</label>
+											<p class="pl-1">or drag and drop</p>
+										</div>
+										<p class="text-xs text-gray-500">WAV, MP3, FLAC, M4A up to 10MB each</p>
+									</div>
+								</div>
+							</div>
+							
+							<!-- File List -->
+							<div id="fileList" class="mt-4 mb-6 hidden">
+								<h4 class="text-sm font-medium text-gray-700 mb-2">Files to Upload</h4>
+								<ul id="uploadFilesList" class="divide-y divide-gray-200">
+									<!-- Files will be listed here -->
+								</ul>
+								
+								<div class="mt-4 text-center">
+									<button id="uploadFilesButton" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+										<i class="fas fa-cloud-upload-alt mr-2"></i>
+										Upload Files
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<div id="samplesSection" class="voice-input-section hidden">
+							<div class="mb-4 flex justify-between items-center">
+								<h4 class="text-sm font-medium text-gray-700">Voice Samples</h4>
+								<div>
+									<button id="refreshSamplesList" class="text-xs text-blue-600 hover:text-blue-800">
+										<i class="fas fa-sync-alt mr-1"></i> Refresh
+									</button>
+									<span class="mx-2 text-gray-300">|</span>
+									<button id="playAllSamplesList" class="text-xs text-green-600 hover:text-green-800">
+										<i class="fas fa-play-circle mr-1"></i> Play All
+									</button>
+								</div>
+							</div>
+							
+							<!-- Loading indicator -->
+							<div id="samplesListLoading" class="py-4 text-center text-gray-500">
+								<div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+								<span class="ml-2">Loading samples...</span>
+							</div>
+							
+							<!-- Sample list -->
+							<div class="bg-white rounded-md border border-gray-200 overflow-hidden">
+								<ul id="samplesListItems" class="divide-y divide-gray-200">
+									<!-- Samples will appear here -->
+								</ul>
+							</div>
+							
+							<!-- Empty state -->
+							<div id="noSamplesListMessage" class="py-6 text-center text-gray-500 hidden">
+								<i class="fas fa-microphone-slash text-gray-400 text-2xl mb-2"></i>
+								<p>No voice samples yet. Record or upload some samples to get started.</p>
+							</div>
+							
+							<!-- Sample actions toolbar -->
+							<div class="flex justify-between mt-3">
+								<div>
+									<span id="sampleListCount" class="text-xs text-gray-600">0 samples</span>
+								</div>
+								<div>
+									<button id="deleteAllSamplesList" class="text-xs text-red-600 hover:text-red-800 hidden">
+										<i class="fas fa-trash-alt mr-1"></i> Delete All
+									</button>
+								</div>
+							</div>
+						</div>
+						
+						<div id="processedSection" class="voice-input-section hidden">
+							<div class="mb-4 flex justify-between items-center">
+								<h4 class="text-sm font-medium text-gray-700">Processed Voice Files</h4>
+								<div>
+									<button id="refreshProcessedList" class="text-xs text-blue-600 hover:text-blue-800">
+										<i class="fas fa-sync-alt mr-1"></i> Refresh
+									</button>
+									<span class="mx-2 text-gray-300">|</span>
+									<button id="playAllProcessedList" class="text-xs text-green-600 hover:text-green-800">
+										<i class="fas fa-play-circle mr-1"></i> Play All
+									</button>
+								</div>
+							</div>
+							
+							<!-- Loading indicator -->
+							<div id="processedListLoading" class="py-4 text-center text-gray-500">
+								<div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+								<span class="ml-2">Loading processed files...</span>
+							</div>
+							
+							<!-- Processed files list -->
+							<div class="bg-white rounded-md border border-gray-200 overflow-hidden">
+								<ul id="processedListItems" class="divide-y divide-gray-200">
+									<!-- Processed files will appear here -->
+								</ul>
+							</div>
+							
+							<!-- Empty state -->
+							<div id="noProcessedListMessage" class="py-6 text-center text-gray-500 hidden">
+								<i class="fas fa-file-audio text-gray-400 text-2xl mb-2"></i>
+								<p>No processed files yet. Process your voice samples to generate these files.</p>
+							</div>
+							
+							<!-- Sample actions toolbar -->
+							<div class="flex justify-between mt-3">
+								<div>
+									<span id="processedListCount" class="text-xs text-gray-600">0 files</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Recorded/Uploaded Samples List -->
+						<div id="recordedSamplesList" class="mt-6 hidden">
+							<h4 class="text-sm font-medium text-gray-700 mb-2">Voice Samples</h4>
+							<ul id="samplesList" class="divide-y divide-gray-200">
+								<!-- Recorded samples will appear here -->
+							</ul>
+						</div>
+
+						<!-- Process Voice Button -->
+						<div class="text-center mt-6">
+							<button id="processVoice" class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 hidden">
+								<i class="fas fa-cogs mr-2"></i>
+								Process Voice
+							</button>
+						</div>
+					</div>
+				</div>
+				
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Modal -->
+    <div id="processingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full">
+            <div class="text-center">
+                <div class="processing-spin inline-block w-8 h-8 border-4 border-b-transparent border-blue-600 rounded-full mb-4"></div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Processing Voice...</h3>
+                <p class="text-gray-600">This may take a few minutes. Please wait.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Global variables
+    let mediaRecorder;
+    let recordingChunks = [];
+    let isRecording = false;
+    let recordingTimerInterval;
+    let recordingStartTime;
+    let recordedSamples = [];
+    let currentVoiceName = '';
+    
+    // API Configuration
+    const API_BASE_URL = window.location.origin;
+    
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeEventListeners();
+        loadVoices();
+        checkSystemHealth();
+        
+        // Set up periodic health check and voice status refresh
+        setInterval(checkSystemHealth, 30000);
+        setInterval(loadVoices, 10000); // Refresh voice list every 10 seconds
+    });
+    
+    // Tab Navigation
+    function showVoicesTab() {
+        document.getElementById('voicesContent').classList.remove('hidden');
+        document.getElementById('createContent').classList.add('hidden');
+        updateTabStyles('voicesTab');
+        loadVoices();
+    }
+    
+    function showCreateTab() {
+        document.getElementById('voicesContent').classList.add('hidden');
+        document.getElementById('createContent').classList.remove('hidden');
+        updateTabStyles('createTab');
+    }
+    
+    function updateTabStyles(activeTab) {
+        const tabs = document.getElementsByClassName('tab-button');
+        for (let tab of tabs) {
+            if (tab.id === activeTab) {
+                tab.classList.add('text-blue-600', 'border-blue-600');
+                tab.classList.remove('text-gray-600', 'border-transparent');
+            } else {
+                tab.classList.remove('text-blue-600', 'border-blue-600');
+                tab.classList.add('text-gray-600', 'border-transparent');
+            }
+        }
+    }
+    
+    // System Health Check
+    function checkSystemHealth() {
+        fetch(`${API_BASE_URL}/api/health`)
+            .then(response => response.json())
+            .then(data => {
+                updateSystemStatus('healthy', 'Healthy');
+                document.getElementById('activeVoice').textContent = data.activeVoice || 'None';
+            })
+            .catch(error => {
+                updateSystemStatus('error', 'Error');
+                console.error('Health check failed:', error);
+            });
+    }
+    
+    function updateSystemStatus(status, text) {
+        const statusElement = document.getElementById('systemStatus');
+        statusElement.innerHTML = `
+            <span class="status-dot status-${status}"></span>
+            <span class="text-lg font-bold text-gray-800">${text}</span>
+        `;
+    }
+    
+    // Load Voices
+    function loadVoices() {
+        return new Promise((resolve, reject) => {
+            fetch(`${API_BASE_URL}/api/voices`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('totalVoices').textContent = data.voices.length;
+                    document.getElementById('processingQueue').textContent = data.processing || 0;
+                    document.getElementById('activeVoice').textContent = data.activeVoice || 'None';
+                    
+                    renderVoicesTable(data.voices);
+                    
+                    // Show/hide no voices message
+                    if (data.voices.length === 0) {
+                        document.getElementById('noVoicesMessage').classList.remove('hidden');
+                        document.querySelector('table').classList.add('hidden');
+                    } else {
+                        document.getElementById('noVoicesMessage').classList.add('hidden');
+                        document.querySelector('table').classList.remove('hidden');
+                    }
+                    
+                    resolve(data);
+                })
+                .catch(error => {
+                    console.error('Failed to load voices:', error);
+                    // Show error state
+                    document.getElementById('voicesTableBody').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-red-600">
+                                Failed to load voices. Please check the connection to the server.
+                            </td>
+                        </tr>
+                    `;
+                    reject(error);
+                });
+        });
+    }
+    
+    // Modify renderVoicesTable to include TTS readiness status
+	function renderVoicesTable(voices) {
+		const tbody = document.getElementById('voicesTableBody');
+		
+		if (voices.length === 0) {
+			tbody.innerHTML = '';
+			return;
+		}
+		
+		// Find active voice to check its TTS service status
+		const activeVoice = voices.find(voice => voice.status === 'active');
+		
+		// Check TTS service health if there's an active voice
+		if (activeVoice && !activeVoice.ttsReady) {
+			checkTTSServiceHealth(activeVoice.name)
+				.then(isReady => {
+					if (isReady) {
+						// Update the voice status and re-render
+						activeVoice.ttsReady = true;
+						renderVoicesTable(voices);
+					} else {
+						// If not ready, schedule another check in 5 seconds
+						setTimeout(() => {
+							renderVoicesTable(voices);
+						}, 5000);
+					}
+				});
+		}
+		
+		tbody.innerHTML = voices.map(voice => `
+			<tr>
+				<td class="px-6 py-4 whitespace-nowrap">
+					<div class="text-sm font-medium text-gray-900">${voice.name}</div>
+				</td>
+				<td class="px-6 py-4 whitespace-nowrap">
+					${getStatusDisplay(voice)}
+				</td>
+				<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+					${voice.samples || 0}
+				</td>
+				<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+					${voice.processed || 0}
+				</td>
+				<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+					${getVoiceActions(voice)}
+				</td>
+			</tr>
+		`).join('');
+	}
+    
+    function getStatusDisplay(voice) {
+        const statusClasses = getStatusClass(voice.status);
+        let statusIcon = '';
+        let statusText = voice.status;
+        
+        switch(voice.status) {
+            case 'active':
+                statusIcon = '<i class="fas fa-play-circle mr-1"></i>';
+                statusText = 'Active';
+                break;
+            case 'ready':
+                statusIcon = '<i class="fas fa-check-circle mr-1"></i>';
+                statusText = 'Ready';
+                break;
+            case 'processing':
+                statusIcon = '<i class="fas fa-circle-notch fa-spin mr-1"></i>';
+                statusText = 'Processing';
+                break;
+            case 'new':
+                statusIcon = '<i class="fas fa-plus-circle mr-1"></i>';
+                statusText = 'New';
+                break;
+            case 'error':
+                statusIcon = '<i class="fas fa-exclamation-circle mr-1"></i>';
+                statusText = 'Error';
+                break;
+        }
+        
+        return `<span class="px-2 py-1 inline-flex items-center text-xs leading-5 font-semibold rounded-full ${statusClasses}">
+            ${statusIcon}${statusText}
+        </span>`;
+    }
+    
+    function getStatusClass(status) {
+        switch (status) {
+            case 'active': return 'bg-green-100 text-green-800';
+            case 'ready': return 'bg-blue-100 text-blue-800';
+            case 'processing': return 'bg-yellow-100 text-yellow-800';
+            case 'error': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    }
+    
+	function checkTTSServiceHealth(voiceName) {
+		return fetch(`${API_BASE_URL}/api/tts-health?voice=${voiceName}`, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+			}
+		})
+		.then(response => {
+			if (response.ok) {
+				return response.json();
+			}
+			throw new Error('TTS service health check failed');
+		})
+		.then(data => {
+			return data.status === 'ready';
+		})
+		.catch(error => {
+			console.error('TTS health check failed:', error);
+			return false;
+		});
+	}
+
+	// Function to set up the UI for adding samples to an existing voice
+	function addSamplesToVoice(voiceName) {
+		// Switch to create tab
+		showCreateTab();
+		
+		// Set the voice name and disable the input
+		const voiceNameInput = document.getElementById('voiceName');
+		voiceNameInput.value = voiceName;
+		voiceNameInput.disabled = true;
+		
+		// Add a "cancel" button next to the voice name
+		const voiceNameContainer = voiceNameInput.parentElement;
+		
+		// Remove existing cancel button if any
+		const existingCancel = voiceNameContainer.querySelector('.cancel-button');
+		if (existingCancel) {
+			existingCancel.remove();
+		}
+		
+		const cancelButton = document.createElement('button');
+		cancelButton.className = 'cancel-button absolute right-3 top-8 text-gray-500 hover:text-gray-700';
+		cancelButton.innerHTML = '<i class="fas fa-times-circle"></i>';
+		cancelButton.onclick = function() {
+			voiceNameInput.value = '';
+			voiceNameInput.disabled = false;
+			this.remove();
+			
+			// Clear recorded samples
+			recordedSamples = [];
+			document.getElementById('recordedSamplesList').classList.add('hidden');
+			document.getElementById('samplesList').innerHTML = '';
+			document.getElementById('processVoice').classList.add('hidden');
+		};
+		
+		voiceNameContainer.style.position = 'relative';
+		voiceNameContainer.appendChild(cancelButton);
+		
+		// Change the heading
+		document.querySelector('#createContent h2').textContent = `Add Samples to ${voiceName}`;
+		
+		// Set focus to the sample text dropdown
+		document.getElementById('sampleText').focus();
+		
+		// Show a notification
+		showNotification(`Adding samples to ${voiceName}`, 'success');
+		
+		// Clear any existing recorded samples
+		recordedSamples = [];
+		document.getElementById('recordedSamplesList').classList.add('hidden');
+		document.getElementById('samplesList').innerHTML = '';
+		
+	}
+
+    // Modify the getVoiceActions function to include a loading state for synthesis
+	function getVoiceActions(voice) {
+		let actions = [];
+		
+		if (voice.status === 'ready') {
+			actions.push(`<button onclick="activateVoice('${voice.name}')" class="text-blue-600 hover:text-blue-900">Activate</button>`);
+		}
+		if (voice.status === 'active') {
+			actions.push(`<button onclick="deactivateVoice('${voice.name}')" class="text-red-600 hover:text-red-900">Deactivate</button>`);
+			
+			// Check if voice has TTS ready status
+			if (voice.ttsReady) {
+				actions.push(`<a href="tts_creator.html?voice=${voice.name}" class="text-green-600 hover:text-green-900">Synthesize</a>`);
+			} else {
+				actions.push(`<span class="text-yellow-600"><i class="fas fa-circle-notch fa-spin mr-1"></i> Initializing...</span>`);
+			}
+		}
+		// Allow adding samples to any voice that's not processing
+		if (voice.status !== 'processing') {
+			actions.push(`<button onclick="addSamplesToVoice('${voice.name}')" class="text-indigo-600 hover:text-indigo-900"><i class="fas fa-plus-circle mr-1"></i>Add Samples</button>`);
+			actions.push(`<button onclick="deleteVoice('${voice.name}')" class="text-red-600 hover:text-red-900">Delete</button>`);
+		}
+		
+		return actions.join(' | ');
+	}
+    
+    // Voice Management Functions
+    function activateVoice(voiceName) {
+		fetch(`${API_BASE_URL}/api/voices/${voiceName}/activate`, { method: 'POST' })
+			.then(response => response.json())
+			.then(data => {
+				loadVoices().then(voicesData => {
+					// Find the activated voice and mark it as not TTS ready initially
+					const activeVoice = voicesData.voices.find(v => v.name === voiceName);
+					if (activeVoice) {
+						activeVoice.ttsReady = false;
+						renderVoicesTable(voicesData.voices);
+						
+						// Show a message that TTS is initializing
+						showNotification('Voice activated, TTS service initializing...', 'success');
+						
+						// Start checking health periodically
+						checkVoiceReadiness(voiceName);
+					}
+				});
+			})
+			.catch(error => {
+				console.error('Failed to activate voice:', error);
+				showNotification('Failed to activate voice', 'error');
+			});
+	}
+    
+	// Add a function to check voice readiness periodically
+	function checkVoiceReadiness(voiceName) {
+		let attempts = 0;
+		const maxAttempts = 12; // Try for up to 1 minute (12 * 5 seconds)
+		
+		const checkInterval = setInterval(() => {
+			attempts++;
+			
+			checkTTSServiceHealth(voiceName)
+				.then(isReady => {
+					if (isReady) {
+						clearInterval(checkInterval);
+						showNotification('TTS service is now ready', 'success');
+						loadVoices();
+					} else if (attempts >= maxAttempts) {
+						clearInterval(checkInterval);
+						showNotification('TTS service initialization took longer than expected', 'warning');
+					}
+				});
+		}, 5000); // Check every 5 seconds
+	}
+
+    function deactivateVoice(voiceName) {
+        fetch(`${API_BASE_URL}/api/voices/${voiceName}/deactivate`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                loadVoices();
+                showNotification('Voice deactivated successfully', 'success');
+            })
+            .catch(error => {
+                console.error('Failed to deactivate voice:', error);
+                showNotification('Failed to deactivate voice', 'error');
+            });
+    }
+    
+    function deleteVoice(voiceName) {
+        if (confirm(`Are you sure you want to delete the voice "${voiceName}"?`)) {
+            fetch(`${API_BASE_URL}/api/voices/${voiceName}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    loadVoices();
+                    showNotification('Voice deleted successfully', 'success');
+                })
+                .catch(error => {
+                    console.error('Failed to delete voice:', error);
+                    showNotification('Failed to delete voice', 'error');
+                });
+        }
+    }
+    
+    // Recording Functions
+    function toggleRecording() {
+        if (!isRecording) {
+            startRecording();
+        } else {
+            stopRecording();
+        }
+    }
+    
+    function startRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                
+                isRecording = true;
+                recordingChunks = [];
+                updateRecordingUI(true);
+                
+                mediaRecorder.addEventListener('dataavailable', event => {
+                    recordingChunks.push(event.data);
+                });
+                
+                mediaRecorder.addEventListener('stop', () => {
+                    const blob = new Blob(recordingChunks, { type: 'audio/wav' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    const audioSource = document.getElementById('audioSource');
+                    audioSource.src = url;
+                    audioPlayer.load();
+                    
+                    document.getElementById('audioPreview').classList.remove('hidden');
+                    document.getElementById('saveRecording').classList.remove('hidden');
+                    
+                    // Keep the blob for later use
+                    currentRecording = blob;
+                });
+                
+                // Start timer
+                recordingStartTime = Date.now();
+                recordingTimerInterval = setInterval(updateRecordingTimer, 1000);
+            })
+            .catch(error => {
+                console.error('Error accessing microphone:', error);
+                showNotification('Error accessing microphone', 'error');
+            });
+    }
+    
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        
+        isRecording = false;
+        updateRecordingUI(false);
+        clearInterval(recordingTimerInterval);
+    }
+    
+    function updateRecordingUI(recording) {
+        const recordButton = document.getElementById('recordButton');
+        const recordButtonText = document.getElementById('recordButtonText');
+        const recordingStatus = document.getElementById('recordingStatus');
+        
+        if (recording) {
+            recordButton.classList.add('recording-pulse');
+            recordButtonText.textContent = 'Stop Recording';
+            recordingStatus.classList.remove('hidden');
+        } else {
+            recordButton.classList.remove('recording-pulse');
+            recordButtonText.textContent = 'Start Recording';
+            recordingStatus.classList.add('hidden');
+        }
+    }
+    
+    function updateRecordingTimer() {
+        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        document.getElementById('recordingTimer').textContent = 
+            `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    function saveRecording() {
+        const voiceName = document.getElementById('voiceName').value.trim();
+        if (!voiceName) {
+            showNotification('Please enter a voice name', 'error');
+            return;
+        }
+        
+        const selectedText = document.getElementById('sampleText').value;
+        
+        const formData = new FormData();
+        formData.append('audio', currentRecording, 'recording.wav');
+        formData.append('voiceName', voiceName);
+        formData.append('text', selectedText);
+        
+        // Show saving indicator
+        const saveButton = document.getElementById('saveRecording');
+        const originalText = saveButton.innerHTML;
+        saveButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Saving...';
+        saveButton.disabled = true;
+        
+        fetch(`${API_BASE_URL}/api/voices/${voiceName}/sample`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            showNotification('Recording saved successfully', 'success');
+            addToRecordedSamplesList(selectedText);
+            
+            // Reset for next recording
+            document.getElementById('audioPreview').classList.add('hidden');
+            document.getElementById('saveRecording').classList.add('hidden');
+            currentRecording = null;
+            
+            // Show process button if enough samples
+            if (recordedSamples.length >= 1) {
+                document.getElementById('processVoice').classList.remove('hidden');
+                
+                // Automatically trigger preprocessing if this is the first sample
+                if (recordedSamples.length === 1) {
+                    // We'll delay preprocessing by 2 seconds to ensure the file is saved
+                    setTimeout(() => {
+                        triggerPreprocessing(voiceName);
+                    }, 2000);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Failed to save recording:', error);
+            showNotification('Failed to save recording', 'error');
+        })
+        .finally(() => {
+            // Reset button state
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+        });
+    }
+    
+    function triggerPreprocessing(voiceName) {
+        // Update UI to show processing
+        const processButton = document.getElementById('processVoice');
+        processButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Processing...';
+        processButton.disabled = true;
+        
+        // Call API to start preprocessing
+        fetch(`${API_BASE_URL}/api/voices/${voiceName}/process`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showNotification('Voice processing started automatically', 'success');
+                
+                // Switch to voices tab after a short delay to show status
+                setTimeout(() => {
+                    showVoicesTab();
+                }, 2000);
+            } else {
+                showNotification('Processing started but returned an unexpected status', 'warning');
+                processButton.disabled = false;
+                processButton.innerHTML = '<i class="fas fa-cogs mr-2"></i>Process Voice';
+            }
+        })
+        .catch(error => {
+            console.error('Failed to process voice:', error);
+            showNotification('Failed to start processing', 'error');
+            processButton.disabled = false;
+            processButton.innerHTML = '<i class="fas fa-cogs mr-2"></i>Process Voice';
+        });
+    }
+    
+    function addToRecordedSamplesList(text) {
+        recordedSamples.push(text);
+        
+        const list = document.getElementById('samplesList');
+        const listContainer = document.getElementById('recordedSamplesList');
+        
+        const listItem = document.createElement('li');
+        listItem.className = 'py-3 flex justify-between items-center';
+        listItem.innerHTML = `
+            <span class="text-sm text-gray-600">${text}</span>
+            <span class="text-sm text-green-600">Saved</span>
+        `;
+        
+        list.appendChild(listItem);
+        listContainer.classList.remove('hidden');
+    }
+    
+    function processVoice() {
+        const voiceName = document.getElementById('voiceName').value.trim();
+        if (!voiceName) {
+            showNotification('Please enter a voice name', 'error');
+            return;
+        }
+        
+        // Show processing modal
+        document.getElementById('processingModal').classList.add('flex');
+        document.getElementById('processingModal').classList.remove('hidden');
+        
+        // Use our shared function to trigger preprocessing
+        triggerPreprocessing(voiceName);
+        
+        // Reset form
+        document.getElementById('voiceName').value = '';
+        recordedSamples = [];
+        document.getElementById('recordedSamplesList').classList.add('hidden');
+        document.getElementById('processVoice').classList.add('hidden');
+        
+        // Hide processing modal after 3 seconds
+        setTimeout(() => {
+            document.getElementById('processingModal').classList.add('hidden');
+            document.getElementById('processingModal').classList.remove('flex');
+        }, 3000);
+    }
+    
+    // Notification System
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg ${
+            type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } text-white z-50`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+	
+	// Add these functions to your existing JavaScript code
+
+		// Initialize event listeners for the upload feature
+		function initializeUploadFeature() {
+			// Tab switching
+			document.getElementById('recordingTab').addEventListener('click', showRecordingTab);
+			document.getElementById('uploadTab').addEventListener('click', showUploadTab);
+			
+			// File upload handling
+			const fileUpload = document.getElementById('fileUpload');
+			fileUpload.addEventListener('change', handleFileSelection);
+			
+			// Upload button
+			document.getElementById('uploadFilesButton').addEventListener('click', uploadFiles);
+			
+			// Drag and drop handling
+			const dropArea = fileUpload.closest('div').parentElement.parentElement;
+			
+			dropArea.addEventListener('dragover', function(e) {
+				e.preventDefault();
+				dropArea.classList.add('bg-gray-50');
+			});
+			
+			dropArea.addEventListener('dragleave', function() {
+				dropArea.classList.remove('bg-gray-50');
+			});
+			
+			dropArea.addEventListener('drop', function(e) {
+				e.preventDefault();
+				dropArea.classList.remove('bg-gray-50');
+				
+				if (e.dataTransfer.files.length > 0) {
+					fileUpload.files = e.dataTransfer.files;
+					handleFileSelection({ target: fileUpload });
+				}
+			});
+		}
+
+		// Tab navigation
+		function showRecordingTab() {
+			document.getElementById('recordingSection').classList.remove('hidden');
+			document.getElementById('uploadSection').classList.add('hidden');
+			document.getElementById('samplesSection').classList.add('hidden');
+			updateVoiceInputTabStyles('recordingTab');
+		}
+
+		function showUploadTab() {
+			document.getElementById('recordingSection').classList.add('hidden');
+			document.getElementById('uploadSection').classList.remove('hidden');
+			document.getElementById('samplesSection').classList.add('hidden');
+			updateVoiceInputTabStyles('uploadTab');
+		}
+
+		function updateVoiceInputTabStyles(activeTab) {
+			const tabs = document.getElementsByClassName('voice-input-tab');
+			for (let tab of tabs) {
+				if (tab.id === activeTab) {
+					tab.classList.add('text-blue-600', 'border-blue-600');
+					tab.classList.remove('text-gray-600', 'border-transparent');
+				} else {
+					tab.classList.remove('text-blue-600', 'border-blue-600');
+					tab.classList.add('text-gray-600', 'border-transparent');
+				}
+			}
+		}
+
+		function initializeTabsAndSamples() {
+			// Add tab switching
+			document.getElementById('recordingTab').addEventListener('click', showRecordingTab);
+			document.getElementById('uploadTab').addEventListener('click', showUploadTab);
+			document.getElementById('samplesTab').addEventListener('click', showSamplesTab);
+			document.getElementById('processedTab').addEventListener('click', showProcessedTab);
+			
+			// Add sample management
+			document.getElementById('refreshSamplesList').addEventListener('click', refreshSamplesList);
+			document.getElementById('playAllSamplesList').addEventListener('click', playAllSamplesList);
+			document.getElementById('deleteAllSamplesList').addEventListener('click', confirmDeleteAllSamplesList);
+			document.getElementById('playAllProcessedList').addEventListener('click', playAllProcessedFiles);
+			
+			// Initialize voice name change listener
+			const voiceNameInput = document.getElementById('voiceName');
+			if (voiceNameInput) {
+				voiceNameInput.addEventListener('change', function() {
+					const voiceName = this.value.trim();
+					if (!document.getElementById('samplesSection').classList.contains('hidden')) {
+						loadSamplesList(voiceName);
+					} else if (!document.getElementById('processedSection').classList.contains('hidden')) {
+						loadProcessedFiles(voiceName);
+					}
+				});
+			}
+			
+			const closeModalButton = document.getElementById('closeAudioModal');
+			if (closeModalButton) {
+				closeModalButton.addEventListener('click', function() {
+					closeAudioModal();
+				});
+			} else {
+				console.error("Close modal button not found!");
+			}
+			
+			const deleteModalButton = document.getElementById('deleteSample');
+			if (deleteModalButton) {
+				deleteModalButton.addEventListener('click', function() {
+					if (currentSampleIndex >= 0 && currentSampleIndex < voiceSamples.length) {
+						confirmDeleteSampleFromList(currentSampleIndex);
+					}
+				});
+			} else {
+				console.error("Delete sample button not found!");
+			}
+			
+			const prevButton = document.getElementById('prevSample');
+			if (prevButton) {
+				prevButton.addEventListener('click', function() {
+					if (currentSampleIndex > 0) {
+						playSampleFromList(currentSampleIndex - 1);
+					}
+				});
+			} else {
+				console.error("Previous sample button not found!");
+			}
+			
+			// Add event listener for modal next button
+			const nextButton = document.getElementById('nextSample');
+			if (nextButton) {
+				nextButton.addEventListener('click', function() {
+					if (currentSampleIndex < voiceSamples.length - 1) {
+						playSampleFromList(currentSampleIndex + 1);
+					}
+				});
+			} else {
+				console.error("Next sample button not found!");
+			}
+		}
+
+		function showSamplesTab() {
+			document.getElementById('recordingSection').classList.add('hidden');
+			document.getElementById('uploadSection').classList.add('hidden');
+			document.getElementById('samplesSection').classList.remove('hidden');
+			updateVoiceInputTabStyles('samplesTab');
+			
+			// Load samples when switching to this tab
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (voiceName) {
+				loadSamplesList(voiceName);
+			} else {
+				document.getElementById('samplesListLoading').classList.add('hidden');
+				document.getElementById('noSamplesListMessage').classList.remove('hidden');
+			}
+		}
+
+		// File handling
+		function handleFileSelection(event) {
+			const files = event.target.files;
+			
+			if (files.length === 0) return;
+			
+			// Update file list
+			const fileList = document.getElementById('fileList');
+			const uploadFilesList = document.getElementById('uploadFilesList');
+			uploadFilesList.innerHTML = '';
+			
+			// Check each file
+			let validFiles = 0;
+			Array.from(files).forEach(file => {
+				// Check if it's an audio file
+				if (!file.type.startsWith('audio/')) {
+					showNotification(`${file.name} is not an audio file`, 'error');
+					return;
+				}
+				
+				// Check file size (10MB limit)
+				if (file.size > 10 * 1024 * 1024) {
+					showNotification(`${file.name} exceeds the 10MB limit`, 'error');
+					return;
+				}
+				
+				validFiles++;
+				
+				// Add to list
+				const listItem = document.createElement('li');
+				listItem.className = 'py-3 flex justify-between items-center';
+				listItem.innerHTML = `
+					<div class="flex items-center">
+						<i class="fas fa-music text-blue-500 mr-2"></i>
+						<span class="text-sm text-gray-600">${file.name}</span>
+						<span class="ml-2 text-xs text-gray-500">${formatFileSize(file.size)}</span>
+					</div>
+					<button class="remove-file text-red-500 hover:text-red-700">
+						<i class="fas fa-times"></i>
+					</button>
+				`;
+				
+				// Add remove button handler
+				listItem.querySelector('.remove-file').addEventListener('click', function() {
+					listItem.remove();
+					
+					// Hide file list if empty
+					if (uploadFilesList.children.length === 0) {
+						fileList.classList.add('hidden');
+					}
+				});
+				
+				uploadFilesList.appendChild(listItem);
+			});
+			
+			// Show file list if there are valid files
+			if (validFiles > 0) {
+				fileList.classList.remove('hidden');
+			}
+		}
+
+		function formatFileSize(bytes) {
+			if (bytes < 1024) return bytes + ' B';
+			else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+			else return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+		}
+
+		function uploadFiles() {
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (!voiceName) {
+				showNotification('Please enter a voice name', 'error');
+				return;
+			}
+			
+			const fileItems = document.getElementById('uploadFilesList').children;
+			if (fileItems.length === 0) {
+				showNotification('No files selected for upload', 'error');
+				return;
+			}
+			
+			// Update button state
+			const uploadButton = document.getElementById('uploadFilesButton');
+			const originalText = uploadButton.innerHTML;
+			uploadButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>Uploading...';
+			uploadButton.disabled = true;
+			
+			// Count total files and successful uploads
+			const totalFiles = fileItems.length;
+			let successCount = 0;
+			let errorCount = 0;
+			
+			// Process each file
+			Array.from(fileItems).forEach((item, index) => {
+				const fileName = item.querySelector('span').textContent;
+				const fileInput = document.getElementById('fileUpload');
+				const file = Array.from(fileInput.files).find(f => f.name === fileName);
+				
+				if (!file) {
+					errorCount++;
+					updateUploadProgress();
+					return;
+				}
+				
+				const formData = new FormData();
+				formData.append('audio', file);
+				formData.append('voiceName', voiceName);
+				
+				fetch(`${API_BASE_URL}/api/voices/${voiceName}/sample`, {
+					method: 'POST',
+					body: formData
+				})
+				.then(response => response.json())
+				.then(data => {
+					successCount++;
+					addToRecordedSamplesList(`File: ${fileName}`);
+					updateUploadProgress();
+				})
+				.catch(error => {
+					console.error('Failed to upload file:', error);
+					errorCount++;
+					updateUploadProgress();
+				});
+			});
+			
+			function updateUploadProgress() {
+				// If all files have been processed
+				if (successCount + errorCount === totalFiles) {
+					// Reset button state
+					uploadButton.innerHTML = originalText;
+					uploadButton.disabled = false;
+					
+					// Show notification
+					if (successCount === totalFiles) {
+						showNotification('All files uploaded successfully', 'success');
+					} else if (successCount > 0) {
+						showNotification(`${successCount} of ${totalFiles} files uploaded successfully`, 'success');
+					} else {
+						showNotification('Failed to upload files', 'error');
+					}
+					
+					// Clear file list
+					document.getElementById('uploadFilesList').innerHTML = '';
+					document.getElementById('fileList').classList.add('hidden');
+					
+					// Show process button if we have samples
+					if (successCount > 0) {
+						document.getElementById('processVoice').classList.remove('hidden');
+						document.getElementById('recordedSamplesList').classList.remove('hidden');
+						
+						// If this is the first upload, trigger preprocessing
+						if (recordedSamples.length === successCount) {
+							setTimeout(() => {
+								triggerPreprocessing(voiceName);
+							}, 2000);
+						}
+					}
+				}
+			}
+		}
+
+		// Update the initializeEventListeners function to include the upload feature
+		function initializeEventListeners() {
+			// Existing event listeners
+			// Tab navigation
+			document.getElementById('voicesTab').addEventListener('click', showVoicesTab);
+			document.getElementById('createTab').addEventListener('click', showCreateTab);
+			
+			// Recording controls
+			document.getElementById('recordButton').addEventListener('click', toggleRecording);
+			document.getElementById('saveRecording').addEventListener('click', saveRecording);
+			document.getElementById('processVoice').addEventListener('click', processVoice);
+			
+			// Add upload feature initialization
+			initializeUploadFeature();
+			enhanceExistingSamplesList();
+			initializeTabsAndSamples();
+			
+			// Refresh button
+			document.getElementById('refreshVoices').addEventListener('click', function() {
+				const button = this;
+				const originalHTML = button.innerHTML;
+				
+				// Show spinning icon
+				button.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Refreshing...';
+				button.disabled = true;
+				
+				// Reload voices
+				loadVoices().finally(() => {
+					// Reset button after short delay
+					setTimeout(() => {
+						button.innerHTML = originalHTML;
+						button.disabled = false;
+					}, 500);
+				});
+			});
+			
+			// Create first voice button
+			document.getElementById('createFirstVoice').addEventListener('click', showCreateTab);
+		}
+		
+		function enhanceExistingSamplesList() {
+			const recordedSamplesList = document.getElementById('recordedSamplesList');
+			
+			// Only enhance if not already enhanced
+			if (!document.getElementById('refreshSamples')) {
+				// Get the header (typically the first h4 element)
+				const header = recordedSamplesList.querySelector('h4');
+				
+				if (header) {
+					// Create a wrapper div for the header and controls
+					const headerWrapper = document.createElement('div');
+					headerWrapper.className = 'flex justify-between items-center mb-3';
+					
+					// Move the header into the wrapper
+					header.parentNode.insertBefore(headerWrapper, header);
+					headerWrapper.appendChild(header);
+					
+					// Add control buttons
+					const controlsDiv = document.createElement('div');
+					controlsDiv.innerHTML = `
+						<button id="refreshSamples" class="text-xs text-blue-600 hover:text-blue-800">
+							<i class="fas fa-sync-alt mr-1"></i> Refresh
+						</button>
+						<span class="mx-2 text-gray-300">|</span>
+						<button id="playAllSamples" class="text-xs text-green-600 hover:text-green-800">
+							<i class="fas fa-play-circle mr-1"></i> Play All
+						</button>
+					`;
+					headerWrapper.appendChild(controlsDiv);
+					
+					// Add loading indicator
+					const loadingDiv = document.createElement('div');
+					loadingDiv.id = 'samplesLoading';
+					loadingDiv.className = 'py-4 text-center text-gray-500 hidden';
+					loadingDiv.innerHTML = `
+						<div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+						<span class="ml-2">Loading samples...</span>
+					`;
+					recordedSamplesList.appendChild(loadingDiv);
+					
+					// Add empty state message
+					const emptyDiv = document.createElement('div');
+					emptyDiv.id = 'noSamplesMessage';
+					emptyDiv.className = 'py-6 text-center text-gray-500 hidden';
+					emptyDiv.innerHTML = `
+						<i class="fas fa-microphone-slash text-gray-400 text-2xl mb-2"></i>
+						<p>No voice samples yet. Record or upload some samples to get started.</p>
+					`;
+					recordedSamplesList.appendChild(emptyDiv);
+					
+					// Add sample count and delete all button
+					const footerDiv = document.createElement('div');
+					footerDiv.className = 'flex justify-between mt-3';
+					footerDiv.innerHTML = `
+						<div>
+							<span id="sampleCount" class="text-xs text-gray-600">0 samples</span>
+						</div>
+						<div>
+							<button id="deleteAllSamples" class="text-xs text-red-600 hover:text-red-800 hidden">
+								<i class="fas fa-trash-alt mr-1"></i> Delete All
+							</button>
+						</div>
+					`;
+					recordedSamplesList.appendChild(footerDiv);
+					
+					// Style the existing samples list
+					const samplesList = document.getElementById('samplesList');
+					if (samplesList) {
+						samplesList.className = 'divide-y divide-gray-200 bg-white rounded-md border border-gray-200 overflow-hidden';
+					}
+				}
+			}
+			
+			// Add audio player modal to the page if not already present
+			if (!document.getElementById('audioPlayerModal')) {
+				const modal = document.createElement('div');
+				modal.id = 'audioPlayerModal';
+				modal.className = 'fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50';
+				modal.innerHTML = `
+					<div class="bg-white rounded-lg p-6 max-w-md w-full">
+						<div class="flex justify-between items-center mb-4">
+							<h3 class="text-lg font-semibold text-gray-800" id="modalTitle">Playing Sample</h3>
+							<button id="closeAudioModal" class="text-gray-400 hover:text-gray-500">
+								<i class="fas fa-times"></i>
+							</button>
+						</div>
+						
+						<div class="mb-4">
+							<audio id="modalAudioPlayer" controls class="w-full">
+								<source id="modalAudioSource" type="audio/wav">
+								Your browser does not support the audio element.
+							</audio>
+						</div>
+						
+						<div class="text-sm text-gray-600 mb-4" id="sampleDetails">
+							<!-- Sample details will be shown here -->
+						</div>
+						
+						<div class="flex justify-between">
+							<button id="prevSample" class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+								<i class="fas fa-step-backward mr-1"></i> Previous
+							</button>
+							
+							<button id="deleteSample" class="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">
+								<i class="fas fa-trash-alt mr-1"></i> Delete
+							</button>
+							
+							<button id="nextSample" class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+								Next <i class="fas fa-step-forward ml-1"></i>
+							</button>
+						</div>
+					</div>
+				`;
+				document.body.appendChild(modal);
+			}
+		}
+		
+		let voiceSamples = [];
+		let currentSampleIndex = -1;
+		
+		function refreshSamples() {
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (!voiceName) {
+				showNotification('Please enter a voice name', 'error');
+				return;
+			}
+			
+			loadSamples(voiceName);
+		}
+
+		// Load samples for a voice
+		function loadSamples(voiceName) {
+			if (!voiceName) return;
+			
+			// Show loading state
+			document.getElementById('samplesLoading').classList.remove('hidden');
+			document.getElementById('samplesList').innerHTML = '';
+			document.getElementById('noSamplesMessage').classList.add('hidden');
+			
+			// Call API to get samples
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/samples`)
+				.then(response => response.json())
+				.then(data => {
+					// Store samples globally
+					voiceSamples = data.samples || [];
+					
+					// Update sample count
+					const countElem = document.getElementById('sampleCount');
+					countElem.textContent = `${voiceSamples.length} samples`;
+					
+					// Toggle delete all button
+					const deleteAllBtn = document.getElementById('deleteAllSamples');
+					if (voiceSamples.length > 0) {
+						deleteAllBtn.classList.remove('hidden');
+					} else {
+						deleteAllBtn.classList.add('hidden');
+					}
+					
+					// Render samples
+					renderSamples();
+					
+					// Show the samples list if we have samples
+					document.getElementById('recordedSamplesList').classList.toggle('hidden', voiceSamples.length === 0);
+					
+					// Hide loading state
+					document.getElementById('samplesLoading').classList.add('hidden');
+					
+					// Show empty state if no samples
+					document.getElementById('noSamplesMessage').classList.toggle('hidden', voiceSamples.length > 0);
+					
+					// Show process button if we have samples
+					if (voiceSamples.length > 0) {
+						document.getElementById('processVoice').classList.remove('hidden');
+					} else {
+						document.getElementById('processVoice').classList.add('hidden');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to load samples:', error);
+					showNotification('Failed to load samples', 'error');
+					document.getElementById('samplesLoading').classList.add('hidden');
+					document.getElementById('noSamplesMessage').classList.remove('hidden');
+				});
+		}
+
+		// Render the samples list
+		function renderSamples() {
+			const samplesList = document.getElementById('samplesList');
+			samplesList.innerHTML = '';
+			
+			voiceSamples.forEach((sample, index) => {
+				const listItem = document.createElement('li');
+				listItem.className = 'py-3 px-4 flex justify-between items-center hover:bg-gray-50';
+				
+				// Format timestamp (if available)
+				let timestampDisplay = '';
+				if (sample.created_at) {
+					const date = new Date(sample.created_at);
+					timestampDisplay = `<span class="text-xs text-gray-400">${date.toLocaleString()}</span>`;
+				}
+				
+				// Sample info
+				let sampleName = sample.filename || `Sample ${index + 1}`;
+				if (sample.metadata && sample.metadata.original_filename) {
+					sampleName = sample.metadata.original_filename;
+				}
+				
+				// Sample text (if available)
+				let sampleText = '';
+				if (sample.metadata && sample.metadata.text) {
+					sampleText = `<span class="text-xs text-gray-500 block mt-1 italic">"${sample.metadata.text.substring(0, 60)}${sample.metadata.text.length > 60 ? '...' : ''}"</span>`;
+				}
+				
+				listItem.innerHTML = `
+					<div>
+						<div class="flex items-center">
+							<i class="fas fa-file-audio text-blue-500 mr-2"></i>
+							<span class="text-sm text-gray-700">${sampleName}</span>
+						</div>
+						${sampleText}
+						${timestampDisplay}
+					</div>
+					<div class="flex space-x-2">
+						<button class="play-sample text-blue-600 hover:text-blue-800" data-index="${index}">
+							<i class="fas fa-play"></i>
+						</button>
+						<button class="delete-sample text-red-600 hover:text-red-800" data-index="${index}">
+							<i class="fas fa-trash-alt"></i>
+						</button>
+					</div>
+				`;
+				
+				// Add event listeners for play/delete buttons
+				listItem.querySelector('.play-sample').addEventListener('click', () => {
+					playSample(index);
+				});
+				
+				listItem.querySelector('.delete-sample').addEventListener('click', () => {
+					confirmDeleteSample(index);
+				});
+				
+				samplesList.appendChild(listItem);
+			});
+		}
+
+		// Play a specific sample
+		function playSample(index) {
+			if (index < 0 || index >= voiceSamples.length) return;
+			
+			const sample = voiceSamples[index];
+			currentSampleIndex = index;
+			
+			// Get the audio URL
+			const voiceName = document.getElementById('voiceName').value.trim();
+			const audioUrl = `${API_BASE_URL}/api/voices/${voiceName}/sample/${sample.filename}`;
+			
+			// Update modal
+			document.getElementById('modalTitle').textContent = `Playing Sample ${index + 1} of ${voiceSamples.length}`;
+			
+			// Update audio player
+			const audioPlayer = document.getElementById('modalAudioPlayer');
+			const audioSource = document.getElementById('modalAudioSource');
+			audioSource.src = audioUrl;
+			audioPlayer.load();
+			
+			// Show sample details
+			let details = '';
+			if (sample.metadata && sample.metadata.text) {
+				details += `<p class="mb-1"><strong>Text:</strong> "${sample.metadata.text}"</p>`;
+			}
+			if (sample.metadata && sample.metadata.original_filename) {
+				details += `<p class="mb-1"><strong>Original File:</strong> ${sample.metadata.original_filename}</p>`;
+			}
+			if (sample.created_at) {
+				const date = new Date(sample.created_at);
+				details += `<p><strong>Recorded:</strong> ${date.toLocaleString()}</p>`;
+			}
+			
+			document.getElementById('sampleDetails').innerHTML = details;
+			
+			// Update prev/next buttons
+			document.getElementById('prevSample').disabled = index === 0;
+			document.getElementById('nextSample').disabled = index === voiceSamples.length - 1;
+			
+			// Show modal
+			const modal = document.getElementById('audioPlayerModal');
+			modal.classList.remove('hidden');
+			modal.classList.add('flex');
+			
+			// Play audio
+			audioPlayer.play();
+		}
+
+		// Close the audio modal
+		function closeAudioModal() {
+			const modal = document.getElementById('audioPlayerModal');
+			if (!modal) {
+				console.error("Audio player modal not found!");
+				return;
+			}
+			
+			const audioPlayer = document.getElementById('modalAudioPlayer');
+			if (audioPlayer) {
+				audioPlayer.pause();
+			}
+			
+			modal.classList.add('hidden');
+			modal.classList.remove('flex');
+			console.log("Modal closed");
+		}
+
+		// Play the previous sample
+		function playPreviousSample() {
+			if (currentSampleIndex > 0) {
+				playSample(currentSampleIndex - 1);
+			}
+		}
+
+		// Play the next sample
+		function playNextSample() {
+			if (currentSampleIndex < voiceSamples.length - 1) {
+				playSample(currentSampleIndex + 1);
+			}
+		}
+
+		// Confirm deletion of a sample
+		function confirmDeleteSample(index) {
+			if (confirm('Are you sure you want to delete this sample?')) {
+				deleteSample(index);
+			}
+		}
+
+		// Delete a sample
+		function deleteSample(index) {
+			if (index < 0 || index >= voiceSamples.length) return;
+			
+			const sample = voiceSamples[index];
+			const voiceName = document.getElementById('voiceName').value.trim();
+			
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/sample/${sample.filename}`, {
+				method: 'DELETE'
+			})
+			.then(response => response.json())
+			.then(data => {
+				showNotification('Sample deleted successfully', 'success');
+				
+				// Remove from array
+				voiceSamples.splice(index, 1);
+				
+				// If current sample is being played, close modal
+				if (index === currentSampleIndex) {
+					closeAudioModal();
+				}
+				
+				// If deleted sample was before current, adjust index
+				if (index < currentSampleIndex) {
+					currentSampleIndex--;
+				}
+				
+				// Re-render
+				renderSamples();
+				
+				// Update sample count
+				document.getElementById('sampleCount').textContent = `${voiceSamples.length} samples`;
+				
+				// Toggle delete all button
+				document.getElementById('deleteAllSamples').classList.toggle('hidden', voiceSamples.length === 0);
+				
+				// Toggle process button
+				document.getElementById('processVoice').classList.toggle('hidden', voiceSamples.length === 0);
+				
+				// Show empty state if no samples
+				document.getElementById('noSamplesMessage').classList.toggle('hidden', voiceSamples.length > 0);
+			})
+			.catch(error => {
+				console.error('Failed to delete sample:', error);
+				showNotification('Failed to delete sample', 'error');
+			});
+		}
+
+		// Delete the current sample in the modal
+		function deleteCurrentSample() {
+			if (currentSampleIndex >= 0 && currentSampleIndex < voiceSamples.length) {
+				if (confirm('Are you sure you want to delete this sample?')) {
+					deleteSample(currentSampleIndex);
+				}
+			}
+		}
+
+		// Confirm deletion of all samples
+		function confirmDeleteAllSamples() {
+			if (confirm('Are you sure you want to delete ALL samples for this voice? This cannot be undone.')) {
+				deleteAllSamples();
+			}
+		}
+
+		// Delete all samples
+		function deleteAllSamples() {
+			const voiceName = document.getElementById('voiceName').value.trim();
+			
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/samples`, {
+				method: 'DELETE'
+			})
+			.then(response => response.json())
+			.then(data => {
+				showNotification('All samples deleted successfully', 'success');
+				
+				// Clear samples array
+				voiceSamples = [];
+				
+				// Close modal if open
+				closeAudioModal();
+				
+				// Reset current index
+				currentSampleIndex = -1;
+				
+				// Re-render
+				renderSamples();
+				
+				// Update sample count
+				document.getElementById('sampleCount').textContent = '0 samples';
+				
+				// Hide delete all button
+				document.getElementById('deleteAllSamples').classList.add('hidden');
+				
+				// Hide process button
+				document.getElementById('processVoice').classList.add('hidden');
+				
+				// Show empty state
+				document.getElementById('noSamplesMessage').classList.remove('hidden');
+			})
+			.catch(error => {
+				console.error('Failed to delete all samples:', error);
+				showNotification('Failed to delete all samples', 'error');
+			});
+		}
+
+		// Play all samples sequentially
+		function playAllSamples() {
+			if (voiceSamples.length === 0) {
+				showNotification('No samples to play', 'error');
+				return;
+			}
+			
+			// Start with the first sample
+			playSample(0);
+		}
+
+		// Add to existing function
+		function addToRecordedSamplesList(text) {
+			recordedSamples.push(text);
+			
+			// Check if we need to refresh samples
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (voiceName) {
+				setTimeout(() => loadSamples(voiceName), 500);
+			}
+		}
+
+		function initializeSampleManagement() {
+			// Sample list buttons
+			document.getElementById('refreshSamples').addEventListener('click', refreshSamples);
+			document.getElementById('playAllSamples').addEventListener('click', playAllSamples);
+			document.getElementById('deleteAllSamples').addEventListener('click', confirmDeleteAllSamples);
+			
+			// Modal buttons
+			document.getElementById('closeAudioModal').addEventListener('click', closeAudioModal);
+			document.getElementById('prevSample').addEventListener('click', playPreviousSample);
+			document.getElementById('nextSample').addEventListener('click', playNextSample);
+			document.getElementById('deleteSample').addEventListener('click', deleteCurrentSample);
+			
+			// Modal audio player events
+			const modalAudioPlayer = document.getElementById('modalAudioPlayer');
+			modalAudioPlayer.addEventListener('ended', () => {
+				// Auto-play next sample when one finishes
+				if (currentSampleIndex < voiceSamples.length - 1) {
+					setTimeout(() => playNextSample(), 1000);
+				}
+			});
+		}
+
+		// Add sample loading to showCreateTab
+		function showCreateTab() {
+			document.getElementById('voicesContent').classList.add('hidden');
+			document.getElementById('createContent').classList.remove('hidden');
+			updateTabStyles('createTab');
+			
+			// Load samples for current voice name if available
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (voiceName) {
+				loadSamples(voiceName);
+			}
+		}
+
+		// Add sample loading when voice name changes
+		function initializeVoiceNameField() {
+			const voiceNameField = document.getElementById('voiceName');
+			
+			// Add event listener for when voice name changes
+			voiceNameField.addEventListener('change', function() {
+				const voiceName = voiceNameField.value.trim();
+				if (voiceName) {
+					loadSamples(voiceName);
+				}
+			});
+		}
+		
+		function loadSamplesList(voiceName) {
+			if (!voiceName) return;
+			
+			console.log("Loading samples for voice:", voiceName);
+			
+			// Show loading state
+			document.getElementById('samplesListLoading').classList.remove('hidden');
+			document.getElementById('samplesListItems').innerHTML = '';
+			document.getElementById('noSamplesListMessage').classList.add('hidden');
+			
+			// Call API to get samples
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/samples`)
+				.then(response => response.json())
+				.then(data => {
+					console.log("Samples loaded:", data);
+					
+					// Store samples globally
+					voiceSamples = data.samples || [];
+					
+					// Update sample count
+					const countElem = document.getElementById('sampleListCount');
+					countElem.textContent = `${voiceSamples.length} samples`;
+					
+					// Toggle delete all button
+					const deleteAllBtn = document.getElementById('deleteAllSamplesList');
+					if (voiceSamples.length > 0) {
+						deleteAllBtn.classList.remove('hidden');
+					} else {
+						deleteAllBtn.classList.add('hidden');
+					}
+					
+					// Render samples
+					renderSamplesList();
+					
+					// Hide loading state
+					document.getElementById('samplesListLoading').classList.add('hidden');
+					
+					// Show empty state if no samples
+					document.getElementById('noSamplesListMessage').classList.toggle('hidden', voiceSamples.length > 0);
+				})
+				.catch(error => {
+					console.error('Failed to load samples:', error);
+					document.getElementById('samplesListLoading').classList.add('hidden');
+					document.getElementById('noSamplesListMessage').classList.remove('hidden');
+					document.getElementById('sampleListCount').textContent = "0 samples";
+				});
+		}
+
+		function renderSamplesList() {
+			const samplesList = document.getElementById('samplesListItems');
+			samplesList.innerHTML = '';
+			
+			if (voiceSamples.length === 0) {
+				return;
+			}
+			
+			voiceSamples.forEach((sample, index) => {
+				const listItem = document.createElement('li');
+				listItem.className = 'py-3 px-4 flex justify-between items-center hover:bg-gray-50';
+				
+				// Format timestamp (if available)
+				let timestampDisplay = '';
+				if (sample.created_at) {
+					const date = new Date(sample.created_at);
+					timestampDisplay = `<span class="text-xs text-gray-400">${date.toLocaleString()}</span>`;
+				}
+				
+				// Sample info
+				let sampleName = sample.filename || `Sample ${index + 1}`;
+				if (sample.metadata && sample.metadata.original_filename) {
+					sampleName = sample.metadata.original_filename;
+				}
+				
+				// Sample text (if available)
+				let sampleText = '';
+				if (sample.metadata && sample.metadata.text) {
+					sampleText = `<span class="text-xs text-gray-500 block mt-1 italic">"${sample.metadata.text.substring(0, 60)}${sample.metadata.text.length > 60 ? '...' : ''}"</span>`;
+				}
+				
+				listItem.innerHTML = `
+					<div>
+						<div class="flex items-center">
+							<i class="fas fa-file-audio text-blue-500 mr-2"></i>
+							<span class="text-sm text-gray-700">${sampleName}</span>
+						</div>
+						${sampleText}
+						${timestampDisplay}
+					</div>
+					<div class="flex space-x-2">
+						<button class="play-sample-item text-blue-600 hover:text-blue-800" data-index="${index}">
+							<i class="fas fa-play"></i>
+						</button>
+						<button class="delete-sample-item text-red-600 hover:text-red-800" data-index="${index}">
+							<i class="fas fa-trash-alt"></i>
+						</button>
+					</div>
+				`;
+				
+				// Add event listeners for play/delete buttons
+				listItem.querySelector('.play-sample-item').addEventListener('click', () => {
+					playSampleFromList(index);
+				});
+				
+				listItem.querySelector('.delete-sample-item').addEventListener('click', () => {
+					confirmDeleteSampleFromList(index);
+				});
+				
+				samplesList.appendChild(listItem);
+			});
+		}
+
+		function refreshSamplesList() {
+			const voiceName = document.getElementById('voiceName').value.trim();
+			if (!voiceName) {
+				showNotification('Please enter a voice name', 'error');
+				return;
+			}
+			
+			loadSamplesList(voiceName);
+		}
+
+		function confirmDeleteAllSamplesList() {
+			if (confirm('Are you sure you want to delete ALL samples for this voice? This cannot be undone.')) {
+				deleteAllSamplesList();
+			}
+		}
+
+		// Delete all samples
+		function deleteAllSamplesList() {
+			const voiceName = document.getElementById('voiceName').value.trim();
+			
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/samples`, {
+				method: 'DELETE'
+			})
+			.then(response => response.json())
+			.then(data => {
+				showNotification('All samples deleted successfully', 'success');
+				
+				// Clear samples array
+				voiceSamples = [];
+				
+				// Close modal if open
+				closeAudioModal();
+				
+				// Reset current index
+				currentSampleIndex = -1;
+				
+				// Re-render
+				renderSamplesList();
+				
+				// Update sample count
+				document.getElementById('sampleListCount').textContent = '0 samples';
+				
+				// Hide delete all button
+				document.getElementById('deleteAllSamplesList').classList.add('hidden');
+				
+				// Show empty state
+				document.getElementById('noSamplesListMessage').classList.remove('hidden');
+				
+				// Hide process button if needed
+				if (document.getElementById('processVoice')) {
+					document.getElementById('processVoice').classList.add('hidden');
+				}
+			})
+			.catch(error => {
+				console.error('Failed to delete all samples:', error);
+				showNotification('Failed to delete all samples', 'error');
+			});
+		}
+
+		// Play all samples sequentially
+		function playAllSamplesList() {
+			if (voiceSamples.length === 0) {
+				showNotification('No samples to play', 'error');
+				return;
+			}
+			
+			// Start with the first sample
+			playSampleFromList(0);
+		}
+
+		// Play a specific sample from the list
+		function playSampleFromList(index) {
+			if (index < 0 || index >= voiceSamples.length) return;
+			
+			const sample = voiceSamples[index];
+			currentSampleIndex = index;
+			
+			// Get the audio URL
+			const voiceName = document.getElementById('voiceName').value.trim();
+			const audioUrl = `${API_BASE_URL}/api/voices/${voiceName}/sample/${sample.filename}`;
+			
+			// Update modal
+			document.getElementById('modalTitle').textContent = `Playing Sample ${index + 1} of ${voiceSamples.length}`;
+			
+			// Update audio player
+			const audioPlayer = document.getElementById('modalAudioPlayer');
+			const audioSource = document.getElementById('modalAudioSource');
+			audioSource.src = audioUrl;
+			audioPlayer.load();
+			
+			// Show sample details
+			let details = '';
+			if (sample.metadata && sample.metadata.text) {
+				details += `<p class="mb-1"><strong>Text:</strong> "${sample.metadata.text}"</p>`;
+			}
+			if (sample.metadata && sample.metadata.original_filename) {
+				details += `<p class="mb-1"><strong>Original File:</strong> ${sample.metadata.original_filename}</p>`;
+			}
+			if (sample.created_at) {
+				const date = new Date(sample.created_at);
+				details += `<p><strong>Recorded:</strong> ${date.toLocaleString()}</p>`;
+			}
+			
+			document.getElementById('sampleDetails').innerHTML = details;
+			
+			// Update prev/next buttons
+			document.getElementById('prevSample').disabled = index === 0;
+			document.getElementById('nextSample').disabled = index === voiceSamples.length - 1;
+			
+			// Show modal
+			const modal = document.getElementById('audioPlayerModal');
+			modal.classList.remove('hidden');
+			modal.classList.add('flex');
+			
+			// Play audio
+			audioPlayer.play();
+		}
+
+		// Confirm deletion of a sample from the list
+		function confirmDeleteSampleFromList(index) {
+			if (confirm('Are you sure you want to delete this sample?')) {
+				deleteSampleFromList(index);
+			}
+		}
+
+		// Delete a sample from the list
+		function deleteSampleFromList(index) {
+			if (index < 0 || index >= voiceSamples.length) return;
+			
+			const sample = voiceSamples[index];
+			const voiceName = document.getElementById('voiceName').value.trim();
+			
+			fetch(`${API_BASE_URL}/api/voices/${voiceName}/sample/${sample.filename}`, {
+				method: 'DELETE'
+			})
+			.then(response => response.json())
+			.then(data => {
+				showNotification('Sample deleted successfully', 'success');
+				
+				// Remove from array
+				voiceSamples.splice(index, 1);
+				
+				// If current sample is being played, close modal
+				if (index === currentSampleIndex) {
+					closeAudioModal();
+				}
+				
+				// If deleted sample was before current, adjust index
+				if (index < currentSampleIndex) {
+					currentSampleIndex--;
+				}
+				
+				// Re-render
+				renderSamplesList();
+				
+				// Update sample count
+				document.getElementById('sampleListCount').textContent = `${voiceSamples.length} samples`;
+				
+				// Toggle delete all button
+				document.getElementById('deleteAllSamplesList').classList.toggle('hidden', voiceSamples.length === 0);
+				
+				// Show empty state if no samples
+				document.getElementById('noSamplesListMessage').classList.toggle('hidden', voiceSamples.length > 0);
+				
+				// Toggle process button if it exists
+				if (document.getElementById('processVoice')) {
+					document.getElementById('processVoice').classList.toggle('hidden', voiceSamples.length === 0);
+				}
+			})
+			.catch(error => {
+				console.error('Failed to delete sample:', error);
+				showNotification('Failed to delete sample', 'error');
+			});
+		}
+		
+		let processedFiles = [];
+let currentProcessedIndex = -1;
+
+// Add tab switching function
+function showProcessedTab() {
+    document.getElementById('recordingSection').classList.add('hidden');
+    document.getElementById('uploadSection').classList.add('hidden');
+    document.getElementById('samplesSection').classList.add('hidden');
+    document.getElementById('processedSection').classList.remove('hidden');
+    updateVoiceInputTabStyles('processedTab');
+    
+    // Load processed files when switching to this tab
+    const voiceName = document.getElementById('voiceName').value.trim();
+    if (voiceName) {
+        loadProcessedFiles(voiceName);
+    } else {
+        document.getElementById('processedListLoading').classList.add('hidden');
+        document.getElementById('noProcessedListMessage').classList.remove('hidden');
+    }
+}
+
+// Add functions to load and display processed files
+function loadProcessedFiles(voiceName) {
+    if (!voiceName) return;
+    
+    console.log("Loading processed files for voice:", voiceName);
+    
+    // Show loading state
+    document.getElementById('processedListLoading').classList.remove('hidden');
+    document.getElementById('processedListItems').innerHTML = '';
+    document.getElementById('noProcessedListMessage').classList.add('hidden');
+    
+    // Call API to get processed files
+    fetch(`${API_BASE_URL}/api/voices/${voiceName}/processed`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Processed files loaded:", data);
+            
+            // Store files globally
+            processedFiles = data.files || [];
+            
+            // Update file count
+            const countElem = document.getElementById('processedListCount');
+            countElem.textContent = `${processedFiles.length} files`;
+            
+            // Render files
+            renderProcessedFiles();
+            
+            // Hide loading state
+            document.getElementById('processedListLoading').classList.add('hidden');
+            
+            // Show empty state if no files
+            document.getElementById('noProcessedListMessage').classList.toggle('hidden', processedFiles.length > 0);
+        })
+        .catch(error => {
+            console.error('Failed to load processed files:', error);
+            document.getElementById('processedListLoading').classList.add('hidden');
+            document.getElementById('noProcessedListMessage').classList.remove('hidden');
+            document.getElementById('processedListCount').textContent = "0 files";
+        });
+}
+
+function renderProcessedFiles() {
+    const filesList = document.getElementById('processedListItems');
+    filesList.innerHTML = '';
+    
+    if (processedFiles.length === 0) {
+        return;
+    }
+    
+    processedFiles.forEach((file, index) => {
+        const listItem = document.createElement('li');
+        listItem.className = 'py-3 px-4 flex justify-between items-center hover:bg-gray-50';
+        
+        // Format timestamp (if available)
+        let timestampDisplay = '';
+        if (file.created_at) {
+            const date = new Date(file.created_at);
+            timestampDisplay = `<span class="text-xs text-gray-400">${date.toLocaleString()}</span>`;
+        }
+        
+        // File info
+        let fileName = file.filename || `Processed File ${index + 1}`;
+        
+        listItem.innerHTML = `
+            <div>
+                <div class="flex items-center">
+                    <i class="fas fa-file-audio text-green-500 mr-2"></i>
+                    <span class="text-sm text-gray-700">${fileName}</span>
+                </div>
+                ${timestampDisplay}
+            </div>
+            <div class="flex space-x-2">
+                <button class="play-processed-file text-blue-600 hover:text-blue-800" data-index="${index}">
+                    <i class="fas fa-play"></i>
+                </button>
+            </div>
+        `;
+        
+        // Add event listener for play button
+        listItem.querySelector('.play-processed-file').addEventListener('click', () => {
+            playProcessedFile(index);
+        });
+        
+        filesList.appendChild(listItem);
+    });
+}
+
+function refreshProcessedFiles() {
+    const voiceName = document.getElementById('voiceName').value.trim();
+    if (!voiceName) {
+        showNotification('Please enter a voice name', 'error');
+        return;
+    }
+    
+    loadProcessedFiles(voiceName);
+}
+
+function playProcessedFile(index) {
+    if (index < 0 || index >= processedFiles.length) return;
+    
+    const file = processedFiles[index];
+    currentProcessedIndex = index;
+    
+    // Get the audio URL
+    const voiceName = document.getElementById('voiceName').value.trim();
+    const audioUrl = `${API_BASE_URL}/api/voices/${voiceName}/processed/${file.filename}`;
+    
+    // Update modal
+    document.getElementById('modalTitle').textContent = `Playing Processed File ${index + 1} of ${processedFiles.length}`;
+    
+    // Update audio player
+    const audioPlayer = document.getElementById('modalAudioPlayer');
+    const audioSource = document.getElementById('modalAudioSource');
+    audioSource.src = audioUrl;
+    audioPlayer.load();
+    
+    // Show sample details
+    let details = '';
+    details += `<p class="mb-1"><strong>File:</strong> ${file.filename}</p>`;
+    if (file.created_at) {
+        const date = new Date(file.created_at);
+        details += `<p><strong>Processed:</strong> ${date.toLocaleString()}</p>`;
+    }
+    
+    document.getElementById('sampleDetails').innerHTML = details;
+    
+    // Update prev/next buttons
+    document.getElementById('prevSample').disabled = index === 0;
+    document.getElementById('nextSample').disabled = index === processedFiles.length - 1;
+    
+    // Show modal
+    const modal = document.getElementById('audioPlayerModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // Hide delete button since we don't want to delete processed files
+    document.getElementById('deleteSample').classList.add('hidden');
+    
+    // Play audio
+    audioPlayer.play();
+}
+
+function playAllProcessedFiles() {
+    if (processedFiles.length === 0) {
+        showNotification('No processed files to play', 'error');
+        return;
+    }
+    
+    // Start with the first file
+    playProcessedFile(0);
+}
+    </script>
+</body>
+</html>

@@ -15,4 +15,5 @@ services:
       - ./server:/app/server
       - ./output:/app/output
       - ./custom:/app/custom
+      - ./logs:/app/logs
     restart: unless-stopped

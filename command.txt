@@ -1,0 +1,42 @@
+tts --text "Hello, this is a test of the voice cloning system." --model_name "tts_models/multilingual/multi-dataset/xtts_v2" --speaker_wav "/app/voice_samples/imran_riaz/segment_03n001.wav" "/app/voice_samples/imran_riaz/segment_03n010.wav" "/app/voice_samples/imran_riaz/segment_03n020.wav" --language_idx "en" --out_path "/app/output/test_voice.wav"
+tts --text "Hello, this is a test of the voice cloning system." --model_name "tts_models/multilingual/multi-dataset/xtts_v2" --speaker_wav "/app/voice_samples/imran_riaz/segment_03n001.wav"                                                                                                       --language_idx "en" --out_path "/app/output/test_voice.wav"
+
+
+python3 -m TTS.server.server \
+  --model_name "tts_models/multilingual/multi-dataset/xtts_v2" \
+  --speaker_wav "/app/voice_samples/voice002/segment_03n001.wav" "/app/voice_samples/imran_riaz/segment_03n010.wav" \
+  --language_idx "en" \
+  --port 5002
+  
+  
+python3 /app/custom/voice_clone_server.py \
+  --speaker_wav /app/voice_samples/voice001/segment_03n001.wav /app/voice_samples/imran_riaz/segment_03n010.wav \
+  --language en \
+  --port 5002
+  
+  
+  
+  
+  
+voice sample collection
+python3 /opt/asterisk-tts-cloning/custom/voice_sample_collector.py \
+  --input /opt/asterisk-tts-cloning/voice_samples/morgan_freeman/morgan_freeman.wav \
+  --output_dir /opt/asterisk-tts-cloning/voice_samples/morgan_freeman/
+  
+ 
+pre-processing 
+python3 /opt/asterisk-tts-cloning/custom/preprocess_audio.py \
+  --input_dir /opt/asterisk-tts-cloning/voice_samples/morgan_freeman/samples/ \
+  --output_dir /opt/asterisk-tts-cloning/voice_samples/morgan_freeman/processed
+  
+  
+/app/custom/start-voice-service.sh --voice /app/voice_samples/morgan_freeman/processed --language en --gpu
+
+
+source venv/bin/activate
+
+systemctl restart tts-http-server.service
+
+docker exec -it coqui-tts bash
+
+curl http://localhost:5002/health
