@@ -1041,13 +1041,18 @@
 			document.getElementById('recordingSection').classList.remove('hidden');
 			document.getElementById('uploadSection').classList.add('hidden');
 			document.getElementById('samplesSection').classList.add('hidden');
+			document.getElementById('processedSection').classList.add('hidden');
+			document.getElementById('asteriskSection').classList.add('hidden'); // Add this line
 			updateVoiceInputTabStyles('recordingTab');
 		}
 
+		// Update the showUploadTab function 
 		function showUploadTab() {
 			document.getElementById('recordingSection').classList.add('hidden');
 			document.getElementById('uploadSection').classList.remove('hidden');
 			document.getElementById('samplesSection').classList.add('hidden');
+			document.getElementById('processedSection').classList.add('hidden');
+			document.getElementById('asteriskSection').classList.add('hidden'); // Add this line
 			updateVoiceInputTabStyles('uploadTab');
 		}
 
@@ -1138,6 +1143,8 @@
 			document.getElementById('recordingSection').classList.add('hidden');
 			document.getElementById('uploadSection').classList.add('hidden');
 			document.getElementById('samplesSection').classList.remove('hidden');
+			document.getElementById('processedSection').classList.add('hidden');
+			document.getElementById('asteriskSection').classList.add('hidden'); // Add this line
 			updateVoiceInputTabStyles('samplesTab');
 			
 			// Load samples when switching to this tab
@@ -1326,7 +1333,8 @@
 			initializeUploadFeature();
 			enhanceExistingSamplesList();
 			initializeTabsAndSamples();
-			
+			initializeAsteriskRecordingsTab();
+
 			// Refresh button
 			document.getElementById('refreshVoices').addEventListener('click', function() {
 				const button = this;
@@ -2143,178 +2151,668 @@
 			});
 		}
 		
-		let processedFiles = [];
-let currentProcessedIndex = -1;
+			let processedFiles = [];
+			let currentProcessedIndex = -1;
 
-// Add tab switching function
-function showProcessedTab() {
-    document.getElementById('recordingSection').classList.add('hidden');
-    document.getElementById('uploadSection').classList.add('hidden');
-    document.getElementById('samplesSection').classList.add('hidden');
-    document.getElementById('processedSection').classList.remove('hidden');
-    updateVoiceInputTabStyles('processedTab');
-    
-    // Load processed files when switching to this tab
-    const voiceName = document.getElementById('voiceName').value.trim();
-    if (voiceName) {
-        loadProcessedFiles(voiceName);
-    } else {
-        document.getElementById('processedListLoading').classList.add('hidden');
-        document.getElementById('noProcessedListMessage').classList.remove('hidden');
-    }
-}
+			// Add tab switching function
+			function showProcessedTab() {
+				document.getElementById('recordingSection').classList.add('hidden');
+				document.getElementById('uploadSection').classList.add('hidden');
+				document.getElementById('samplesSection').classList.add('hidden');
+				document.getElementById('processedSection').classList.remove('hidden');
+				document.getElementById('asteriskSection').classList.add('hidden'); // Add this line
+				updateVoiceInputTabStyles('processedTab');
+				
+				// Load processed files when switching to this tab
+				const voiceName = document.getElementById('voiceName').value.trim();
+				if (voiceName) {
+					loadProcessedFiles(voiceName);
+				} else {
+					document.getElementById('processedListLoading').classList.add('hidden');
+					document.getElementById('noProcessedListMessage').classList.remove('hidden');
+				}
+			}
 
-// Add functions to load and display processed files
-function loadProcessedFiles(voiceName) {
-    if (!voiceName) return;
-    
-    console.log("Loading processed files for voice:", voiceName);
-    
-    // Show loading state
-    document.getElementById('processedListLoading').classList.remove('hidden');
-    document.getElementById('processedListItems').innerHTML = '';
-    document.getElementById('noProcessedListMessage').classList.add('hidden');
-    
-    // Call API to get processed files
-    fetch(`${API_BASE_URL}/api/voices/${voiceName}/processed`)
-        .then(response => response.json())
-        .then(data => {
-            console.log("Processed files loaded:", data);
-            
-            // Store files globally
-            processedFiles = data.files || [];
-            
-            // Update file count
-            const countElem = document.getElementById('processedListCount');
-            countElem.textContent = `${processedFiles.length} files`;
-            
-            // Render files
-            renderProcessedFiles();
-            
-            // Hide loading state
-            document.getElementById('processedListLoading').classList.add('hidden');
-            
-            // Show empty state if no files
-            document.getElementById('noProcessedListMessage').classList.toggle('hidden', processedFiles.length > 0);
-        })
-        .catch(error => {
-            console.error('Failed to load processed files:', error);
-            document.getElementById('processedListLoading').classList.add('hidden');
-            document.getElementById('noProcessedListMessage').classList.remove('hidden');
-            document.getElementById('processedListCount').textContent = "0 files";
-        });
-}
+			// Add functions to load and display processed files
+			function loadProcessedFiles(voiceName) {
+				if (!voiceName) return;
+				
+				console.log("Loading processed files for voice:", voiceName);
+				
+				// Show loading state
+				document.getElementById('processedListLoading').classList.remove('hidden');
+				document.getElementById('processedListItems').innerHTML = '';
+				document.getElementById('noProcessedListMessage').classList.add('hidden');
+				
+				// Call API to get processed files
+				fetch(`${API_BASE_URL}/api/voices/${voiceName}/processed`)
+					.then(response => response.json())
+					.then(data => {
+						console.log("Processed files loaded:", data);
+						
+						// Store files globally
+						processedFiles = data.files || [];
+						
+						// Update file count
+						const countElem = document.getElementById('processedListCount');
+						countElem.textContent = `${processedFiles.length} files`;
+						
+						// Render files
+						renderProcessedFiles();
+						
+						// Hide loading state
+						document.getElementById('processedListLoading').classList.add('hidden');
+						
+						// Show empty state if no files
+						document.getElementById('noProcessedListMessage').classList.toggle('hidden', processedFiles.length > 0);
+					})
+					.catch(error => {
+						console.error('Failed to load processed files:', error);
+						document.getElementById('processedListLoading').classList.add('hidden');
+						document.getElementById('noProcessedListMessage').classList.remove('hidden');
+						document.getElementById('processedListCount').textContent = "0 files";
+					});
+			}
 
-function renderProcessedFiles() {
-    const filesList = document.getElementById('processedListItems');
-    filesList.innerHTML = '';
-    
-    if (processedFiles.length === 0) {
-        return;
-    }
-    
-    processedFiles.forEach((file, index) => {
-        const listItem = document.createElement('li');
-        listItem.className = 'py-3 px-4 flex justify-between items-center hover:bg-gray-50';
-        
-        // Format timestamp (if available)
-        let timestampDisplay = '';
-        if (file.created_at) {
-            const date = new Date(file.created_at);
-            timestampDisplay = `<span class="text-xs text-gray-400">${date.toLocaleString()}</span>`;
-        }
-        
-        // File info
-        let fileName = file.filename || `Processed File ${index + 1}`;
-        
-        listItem.innerHTML = `
-            <div>
-                <div class="flex items-center">
-                    <i class="fas fa-file-audio text-green-500 mr-2"></i>
-                    <span class="text-sm text-gray-700">${fileName}</span>
-                </div>
-                ${timestampDisplay}
-            </div>
-            <div class="flex space-x-2">
-                <button class="play-processed-file text-blue-600 hover:text-blue-800" data-index="${index}">
-                    <i class="fas fa-play"></i>
-                </button>
-            </div>
-        `;
-        
-        // Add event listener for play button
-        listItem.querySelector('.play-processed-file').addEventListener('click', () => {
-            playProcessedFile(index);
-        });
-        
-        filesList.appendChild(listItem);
-    });
-}
+			function renderProcessedFiles() {
+				const filesList = document.getElementById('processedListItems');
+				filesList.innerHTML = '';
+				
+				if (processedFiles.length === 0) {
+					return;
+				}
+				
+				processedFiles.forEach((file, index) => {
+					const listItem = document.createElement('li');
+					listItem.className = 'py-3 px-4 flex justify-between items-center hover:bg-gray-50';
+					
+					// Format timestamp (if available)
+					let timestampDisplay = '';
+					if (file.created_at) {
+						const date = new Date(file.created_at);
+						timestampDisplay = `<span class="text-xs text-gray-400">${date.toLocaleString()}</span>`;
+					}
+					
+					// File info
+					let fileName = file.filename || `Processed File ${index + 1}`;
+					
+					listItem.innerHTML = `
+						<div>
+							<div class="flex items-center">
+								<i class="fas fa-file-audio text-green-500 mr-2"></i>
+								<span class="text-sm text-gray-700">${fileName}</span>
+							</div>
+							${timestampDisplay}
+						</div>
+						<div class="flex space-x-2">
+							<button class="play-processed-file text-blue-600 hover:text-blue-800" data-index="${index}">
+								<i class="fas fa-play"></i>
+							</button>
+						</div>
+					`;
+					
+					// Add event listener for play button
+					listItem.querySelector('.play-processed-file').addEventListener('click', () => {
+						playProcessedFile(index);
+					});
+					
+					filesList.appendChild(listItem);
+				});
+			}
 
-function refreshProcessedFiles() {
-    const voiceName = document.getElementById('voiceName').value.trim();
-    if (!voiceName) {
-        showNotification('Please enter a voice name', 'error');
-        return;
-    }
-    
-    loadProcessedFiles(voiceName);
-}
+			function refreshProcessedFiles() {
+				const voiceName = document.getElementById('voiceName').value.trim();
+				if (!voiceName) {
+					showNotification('Please enter a voice name', 'error');
+					return;
+				}
+				
+				loadProcessedFiles(voiceName);
+			}
 
-function playProcessedFile(index) {
-    if (index < 0 || index >= processedFiles.length) return;
-    
-    const file = processedFiles[index];
-    currentProcessedIndex = index;
-    
-    // Get the audio URL
-    const voiceName = document.getElementById('voiceName').value.trim();
-    const audioUrl = `${API_BASE_URL}/api/voices/${voiceName}/processed/${file.filename}`;
-    
-    // Update modal
-    document.getElementById('modalTitle').textContent = `Playing Processed File ${index + 1} of ${processedFiles.length}`;
-    
-    // Update audio player
-    const audioPlayer = document.getElementById('modalAudioPlayer');
-    const audioSource = document.getElementById('modalAudioSource');
-    audioSource.src = audioUrl;
-    audioPlayer.load();
-    
-    // Show sample details
-    let details = '';
-    details += `<p class="mb-1"><strong>File:</strong> ${file.filename}</p>`;
-    if (file.created_at) {
-        const date = new Date(file.created_at);
-        details += `<p><strong>Processed:</strong> ${date.toLocaleString()}</p>`;
-    }
-    
-    document.getElementById('sampleDetails').innerHTML = details;
-    
-    // Update prev/next buttons
-    document.getElementById('prevSample').disabled = index === 0;
-    document.getElementById('nextSample').disabled = index === processedFiles.length - 1;
-    
-    // Show modal
-    const modal = document.getElementById('audioPlayerModal');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    
-    // Hide delete button since we don't want to delete processed files
-    document.getElementById('deleteSample').classList.add('hidden');
-    
-    // Play audio
-    audioPlayer.play();
-}
+			function playProcessedFile(index) {
+				if (index < 0 || index >= processedFiles.length) return;
+				
+				const file = processedFiles[index];
+				currentProcessedIndex = index;
+				
+				// Get the audio URL
+				const voiceName = document.getElementById('voiceName').value.trim();
+				const audioUrl = `${API_BASE_URL}/api/voices/${voiceName}/processed/${file.filename}`;
+				
+				// Update modal
+				document.getElementById('modalTitle').textContent = `Playing Processed File ${index + 1} of ${processedFiles.length}`;
+				
+				// Update audio player
+				const audioPlayer = document.getElementById('modalAudioPlayer');
+				const audioSource = document.getElementById('modalAudioSource');
+				audioSource.src = audioUrl;
+				audioPlayer.load();
+				
+				// Show sample details
+				let details = '';
+				details += `<p class="mb-1"><strong>File:</strong> ${file.filename}</p>`;
+				if (file.created_at) {
+					const date = new Date(file.created_at);
+					details += `<p><strong>Processed:</strong> ${date.toLocaleString()}</p>`;
+				}
+				
+				document.getElementById('sampleDetails').innerHTML = details;
+				
+				// Update prev/next buttons
+				document.getElementById('prevSample').disabled = index === 0;
+				document.getElementById('nextSample').disabled = index === processedFiles.length - 1;
+				
+				// Show modal
+				const modal = document.getElementById('audioPlayerModal');
+				modal.classList.remove('hidden');
+				modal.classList.add('flex');
+				
+				// Hide delete button since we don't want to delete processed files
+				document.getElementById('deleteSample').classList.add('hidden');
+				
+				// Play audio
+				audioPlayer.play();
+			}
 
-function playAllProcessedFiles() {
-    if (processedFiles.length === 0) {
-        showNotification('No processed files to play', 'error');
-        return;
-    }
-    
-    // Start with the first file
-    playProcessedFile(0);
-}
+			function playAllProcessedFiles() {
+				if (processedFiles.length === 0) {
+					showNotification('No processed files to play', 'error');
+					return;
+				}
+				
+				// Start with the first file
+				playProcessedFile(0);
+			}
+
+
+
+
+
+			function initializeAsteriskRecordingsTab() {
+				// Find the tab navigation element (nav)
+				const navElement = document.querySelector('.voice-input-section').parentElement.querySelector('nav');
+				
+				if (!navElement) {
+					console.error("Navigation element not found. Can't initialize Asterisk tab.");
+					return;
+				}
+				
+				// Create new tab button
+				const asteriskTab = document.createElement('button');
+				asteriskTab.id = 'asteriskTab';
+				asteriskTab.className = 'voice-input-tab px-1 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300';
+				asteriskTab.innerHTML = '<i class="fas fa-phone-alt mr-2"></i>Asterisk Recordings';
+				
+				// Add the tab to the nav element
+				navElement.appendChild(asteriskTab);
+				
+				// Create the tab content section
+				const voiceInputSections = document.querySelector('.voice-input-section').parentElement;
+				
+				const asteriskSection = document.createElement('div');
+				asteriskSection.id = 'asteriskSection';
+				asteriskSection.className = 'voice-input-section hidden';
+				
+				asteriskSection.innerHTML = `
+					<div class="mb-4 flex justify-between items-center">
+						<h4 class="text-sm font-medium text-gray-700">Asterisk Call Recordings</h4>
+						<div>
+							<button id="refreshAsteriskList" class="text-xs text-blue-600 hover:text-blue-800">
+								<i class="fas fa-sync-alt mr-1"></i> Refresh
+							</button>
+							<span class="mx-2 text-gray-300">|</span>
+							<button id="importAllAsteriskList" class="text-xs text-green-600 hover:text-green-800">
+								<i class="fas fa-file-import mr-1"></i> Import Selected
+							</button>
+						</div>
+					</div>
+					
+					<!-- Loading indicator -->
+					<div id="asteriskListLoading" class="py-4 text-center text-gray-500">
+						<div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+						<span class="ml-2">Loading recordings...</span>
+					</div>
+					
+					<!-- Recordings list -->
+					<div class="bg-white rounded-md border border-gray-200 overflow-hidden max-h-80 overflow-y-auto">
+						<ul id="asteriskListItems" class="divide-y divide-gray-200">
+							<!-- Recordings will appear here -->
+						</ul>
+					</div>
+					
+					<!-- Empty state -->
+					<div id="noAsteriskListMessage" class="py-6 text-center text-gray-500 hidden">
+						<i class="fas fa-phone-slash text-gray-400 text-2xl mb-2"></i>
+						<p>No Asterisk recordings found. Make some calls to generate recordings.</p>
+					</div>
+					
+					<!-- Preprocessing options -->
+					<div class="mt-6 p-4 bg-blue-50 rounded-md">
+						<h5 class="text-sm font-medium text-blue-800 mb-2">Preprocessing Options</h5>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label class="block text-xs text-blue-700 mb-1">Noise Reduction</label>
+								<select id="noiseReduction" class="w-full rounded-md border-blue-300 text-sm">
+									<option value="auto">Automatic</option>
+									<option value="light">Light</option>
+									<option value="medium" selected>Medium</option>
+									<option value="aggressive">Aggressive</option>
+									<option value="none">None</option>
+								</select>
+							</div>
+							<div>
+								<label class="block text-xs text-blue-700 mb-1">Silence Removal</label>
+								<select id="silenceRemoval" class="w-full rounded-md border-blue-300 text-sm">
+									<option value="auto">Automatic</option>
+									<option value="light">Light</option>
+									<option value="medium" selected>Medium</option>
+									<option value="aggressive">Aggressive</option>
+									<option value="none">None</option>
+								</select>
+							</div>
+						</div>
+						<div class="mt-2">
+							<label class="inline-flex items-center">
+								<input type="checkbox" id="normalizeVolume" class="rounded border-blue-300 text-blue-600" checked>
+								<span class="ml-2 text-xs text-blue-700">Normalize volume levels</span>
+							</label>
+						</div>
+					</div>
+					
+					<!-- Processing status -->
+					<div id="asteriskProcessingStatus" class="mt-4 hidden">
+						<div class="p-4 bg-yellow-50 rounded-md">
+							<h5 class="text-sm font-medium text-yellow-800 flex items-center">
+								<i class="fas fa-circle-notch fa-spin mr-2"></i>
+								Processing Recordings
+							</h5>
+							<div class="mt-2">
+								<div class="relative pt-1">
+									<div class="flex mb-2 items-center justify-between">
+										<div>
+											<span id="processedCount" class="text-xs font-semibold inline-block text-yellow-800">0/0</span>
+										</div>
+										<div class="text-right">
+											<span id="processingPercentage" class="text-xs font-semibold inline-block text-yellow-800">0%</span>
+										</div>
+									</div>
+									<div class="overflow-hidden h-2 text-xs flex rounded bg-yellow-200">
+										<div id="processingProgressBar" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-yellow-500" style="width: 0%"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				`;
+				
+				voiceInputSections.appendChild(asteriskSection);
+				
+				// Add event listeners
+				asteriskTab.addEventListener('click', showAsteriskTab);
+				
+				// Check if elements exist before adding event listeners
+				const refreshBtn = document.getElementById('refreshAsteriskList');
+				const importBtn = document.getElementById('importAllAsteriskList');
+				
+				if (refreshBtn) {
+					refreshBtn.addEventListener('click', refreshAsteriskRecordings);
+				} else {
+					console.warn("Refresh button for Asterisk recordings not found");
+				}
+				
+				if (importBtn) {
+					importBtn.addEventListener('click', importSelectedAsteriskRecordings);
+				} else {
+					console.warn("Import button for Asterisk recordings not found");
+				}
+			}
+
+			// Show Asterisk recordings tab
+			function showAsteriskTab() {
+				// Hide other sections
+				document.getElementById('recordingSection').classList.add('hidden');
+				document.getElementById('uploadSection').classList.add('hidden');
+				document.getElementById('samplesSection').classList.add('hidden');
+				document.getElementById('processedSection').classList.add('hidden');
+				
+				// Show Asterisk recordings section
+				document.getElementById('asteriskSection').classList.remove('hidden');
+				
+				// Update tab styles
+				updateVoiceInputTabStyles('asteriskTab');
+				
+				// Load recordings when switching to this tab
+				loadAsteriskRecordings();
+			}
+
+			// Global variable to store Asterisk recordings
+			let asteriskRecordings = [];
+			let selectedRecordings = [];
+
+			// Load Asterisk recordings
+			function loadAsteriskRecordings() {
+				// Show loading state
+				document.getElementById('asteriskListLoading').classList.remove('hidden');
+				document.getElementById('asteriskListItems').innerHTML = '';
+				document.getElementById('noAsteriskListMessage').classList.add('hidden');
+				
+				// Get the voice name (if any)
+				const voiceName = document.getElementById('voiceName').value.trim();
+				
+				// Call API to get recordings
+				fetch(`${API_BASE_URL}/api/asterisk/recordings`)
+					.then(response => response.json())
+					.then(data => {
+						console.log("Asterisk recordings loaded:", data);
+						
+						// Store recordings globally
+						asteriskRecordings = data.recordings || [];
+						
+						// Reset selected recordings
+						selectedRecordings = [];
+						
+						// Render recordings
+						renderAsteriskRecordings();
+						
+						// Hide loading state
+						document.getElementById('asteriskListLoading').classList.add('hidden');
+						
+						// Show empty state if no recordings
+						document.getElementById('noAsteriskListMessage').classList.toggle('hidden', asteriskRecordings.length > 0);
+					})
+					.catch(error => {
+						console.error('Failed to load Asterisk recordings:', error);
+						document.getElementById('asteriskListLoading').classList.add('hidden');
+						document.getElementById('noAsteriskListMessage').classList.remove('hidden');
+					});
+			}
+
+			// Render Asterisk recordings
+			function renderAsteriskRecordings() {
+				const recordingsList = document.getElementById('asteriskListItems');
+				recordingsList.innerHTML = '';
+				
+				if (asteriskRecordings.length === 0) {
+					return;
+				}
+				
+				asteriskRecordings.forEach((recording, index) => {
+					const isSelected = selectedRecordings.includes(recording.id);
+					
+					const listItem = document.createElement('li');
+					listItem.className = `py-3 px-4 flex justify-between items-center hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`;
+					
+					// Format date
+					let dateDisplay = '';
+					if (recording.date) {
+						const date = new Date(recording.date);
+						dateDisplay = date.toLocaleString();
+					}
+					
+					// Call details
+					let callDetails = '';
+					if (recording.callerid) {
+						callDetails = `<span class="text-xs text-gray-500 block mt-1">Caller: ${recording.callerid}</span>`;
+					}
+					if (recording.duration) {
+						callDetails += `<span class="text-xs text-gray-500 block mt-1">Duration: ${formatDuration(recording.duration)}</span>`;
+					}
+					
+					listItem.innerHTML = `
+						<div class="flex-grow">
+							<div class="flex items-center">
+								<input type="checkbox" class="select-recording h-4 w-4 text-blue-600 focus:ring-blue-500 rounded" 
+									data-index="${index}" ${isSelected ? 'checked' : ''}>
+								<i class="fas fa-file-audio text-blue-500 mx-2"></i>
+								<span class="text-sm text-gray-700">${recording.filename || `Recording ${index + 1}`}</span>
+							</div>
+							${callDetails}
+							<span class="text-xs text-gray-400 block mt-1">${dateDisplay}</span>
+						</div>
+						<div class="flex space-x-2">
+							<button class="play-asterisk-recording text-blue-600 hover:text-blue-800" data-index="${index}">
+								<i class="fas fa-play"></i>
+							</button>
+							<button class="import-asterisk-recording text-green-600 hover:text-green-800" data-index="${index}">
+								<i class="fas fa-file-import"></i>
+							</button>
+						</div>
+					`;
+					
+					// Add event listeners
+					// Checkbox selection
+					listItem.querySelector('.select-recording').addEventListener('change', (e) => {
+						const recordingId = asteriskRecordings[index].id;
+						if (e.target.checked) {
+							if (!selectedRecordings.includes(recordingId)) {
+								selectedRecordings.push(recordingId);
+							}
+							listItem.classList.add('bg-blue-50');
+						} else {
+							selectedRecordings = selectedRecordings.filter(id => id !== recordingId);
+							listItem.classList.remove('bg-blue-50');
+						}
+					});
+					
+					// Play button
+					listItem.querySelector('.play-asterisk-recording').addEventListener('click', () => {
+						playAsteriskRecording(index);
+					});
+					
+					// Import button
+					listItem.querySelector('.import-asterisk-recording').addEventListener('click', () => {
+						importAsteriskRecording(index);
+					});
+					
+					recordingsList.appendChild(listItem);
+				});
+			}
+
+			// Format duration in seconds to mm:ss
+			function formatDuration(seconds) {
+				const mins = Math.floor(seconds / 60);
+				const secs = Math.floor(seconds % 60);
+				return `${mins}:${secs.toString().padStart(2, '0')}`;
+			}
+
+			// Refresh Asterisk recordings
+			function refreshAsteriskRecordings() {
+				loadAsteriskRecordings();
+			}
+
+			// Play Asterisk recording
+			function playAsteriskRecording(index) {
+				if (index < 0 || index >= asteriskRecordings.length) return;
+				
+				const recording = asteriskRecordings[index];
+				
+				// Get the audio URL
+				const audioUrl = `${API_BASE_URL}/api/asterisk/recording/${recording.id}`;
+				
+				// Update modal
+				document.getElementById('modalTitle').textContent = `Playing Asterisk Recording`;
+				
+				// Update audio player
+				const audioPlayer = document.getElementById('modalAudioPlayer');
+				const audioSource = document.getElementById('modalAudioSource');
+				audioSource.src = audioUrl;
+				audioPlayer.load();
+				
+				// Show sample details
+				let details = '';
+				details += `<p class="mb-1"><strong>Recording:</strong> ${recording.filename}</p>`;
+				if (recording.callerid) {
+					details += `<p class="mb-1"><strong>Caller ID:</strong> ${recording.callerid}</p>`;
+				}
+				if (recording.date) {
+					const date = new Date(recording.date);
+					details += `<p class="mb-1"><strong>Date:</strong> ${date.toLocaleString()}</p>`;
+				}
+				if (recording.duration) {
+					details += `<p><strong>Duration:</strong> ${formatDuration(recording.duration)}</p>`;
+				}
+				
+				document.getElementById('sampleDetails').innerHTML = details;
+				
+				// Hide navigation and delete buttons
+				document.getElementById('prevSample').classList.add('hidden');
+				document.getElementById('nextSample').classList.add('hidden');
+				document.getElementById('deleteSample').classList.add('hidden');
+				
+				// Show modal
+				const modal = document.getElementById('audioPlayerModal');
+				modal.classList.remove('hidden');
+				modal.classList.add('flex');
+				
+				// Play audio
+				audioPlayer.play();
+			}
+
+			// Import a single Asterisk recording
+			function importAsteriskRecording(index) {
+				const voiceName = document.getElementById('voiceName').value.trim();
+				if (!voiceName) {
+					showNotification('Please enter a voice name first', 'error');
+					return;
+				}
+				
+				if (index < 0 || index >= asteriskRecordings.length) return;
+				
+				const recording = asteriskRecordings[index];
+				
+				// Get preprocessing options
+				const preprocessingOptions = getPreprocessingOptions();
+				
+				// Show processing status
+				showProcessingStatus(1);
+				
+				// Call API to import the recording
+				fetch(`${API_BASE_URL}/api/asterisk/voices/${voiceName}/import-asterisk`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						recordings: [recording.id],
+						preprocessing: preprocessingOptions
+					})
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.status === 'success') {
+						showNotification('Recording imported successfully', 'success');
+						
+						// Update progress
+						updateProcessingProgress(1, 1);
+						
+						// Hide processing status after a delay
+						setTimeout(() => {
+							hideProcessingStatus();
+							
+							// Switch to samples tab to show the newly imported recording
+							document.getElementById('samplesTab').click();
+						}, 2000);
+					} else {
+						throw new Error(data.message || 'Failed to import recording');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to import recording:', error);
+					showNotification('Failed to import recording: ' + error.message, 'error');
+					hideProcessingStatus();
+				});
+			}
+
+			// Import all selected Asterisk recordings
+			function importSelectedAsteriskRecordings() {
+				const voiceName = document.getElementById('voiceName').value.trim();
+				if (!voiceName) {
+					showNotification('Please enter a voice name first', 'error');
+					return;
+				}
+				
+				if (selectedRecordings.length === 0) {
+					showNotification('Please select at least one recording to import', 'warning');
+					return;
+				}
+				
+				// Get preprocessing options
+				const preprocessingOptions = getPreprocessingOptions();
+				
+				// Show processing status
+				showProcessingStatus(selectedRecordings.length);
+				
+				// Call API to import recordings
+				fetch(`${API_BASE_URL}/api/voices/${voiceName}/import-asterisk`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						recordings: selectedRecordings,
+						preprocessing: preprocessingOptions
+					})
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.status === 'success') {
+						showNotification(`${data.imported} of ${selectedRecordings.length} recordings imported successfully`, 'success');
+						
+						// Update progress
+						updateProcessingProgress(data.imported, selectedRecordings.length);
+						
+						// Hide processing status after a delay
+						setTimeout(() => {
+							hideProcessingStatus();
+							
+							// Switch to samples tab to show the newly imported recordings
+							document.getElementById('samplesTab').click();
+						}, 2000);
+					} else {
+						throw new Error(data.message || 'Failed to import recordings');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to import recordings:', error);
+					showNotification('Failed to import recordings: ' + error.message, 'error');
+					hideProcessingStatus();
+				});
+			}
+
+			// Get preprocessing options from form
+			function getPreprocessingOptions() {
+				return {
+					noiseReduction: document.getElementById('noiseReduction').value,
+					silenceRemoval: document.getElementById('silenceRemoval').value,
+					normalizeVolume: document.getElementById('normalizeVolume').checked
+				};
+			}
+
+			// Show processing status with progress bar
+			function showProcessingStatus(total) {
+				const statusElement = document.getElementById('asteriskProcessingStatus');
+				statusElement.classList.remove('hidden');
+				
+				// Reset progress
+				document.getElementById('processedCount').textContent = `0/${total}`;
+				document.getElementById('processingPercentage').textContent = '0%';
+				document.getElementById('processingProgressBar').style.width = '0%';
+			}
+
+			// Update processing progress
+			function updateProcessingProgress(current, total) {
+				const percentage = Math.round((current / total) * 100);
+				
+				document.getElementById('processedCount').textContent = `${current}/${total}`;
+				document.getElementById('processingPercentage').textContent = `${percentage}%`;
+				document.getElementById('processingProgressBar').style.width = `${percentage}%`;
+			}
+
+			// Hide processing status
+			function hideProcessingStatus() {
+				document.getElementById('asteriskProcessingStatus').classList.add('hidden');
+			}
     </script>
 </body>
 </html>

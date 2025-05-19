@@ -10,6 +10,7 @@ import logging
 import shutil
 import subprocess
 import asyncio
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -19,6 +20,8 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from asterisk_api import router as asterisk_router
+from asterisk_dialer_api import router as dialer_router
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +48,7 @@ CONTAINER_NAME = "coqui-tts"
 os.makedirs(VOICES_DIR, exist_ok=True)
 os.makedirs(PROCESSING_DIR, exist_ok=True)
 
-# API Configuration
+# Add this configuration to the Config class
 class Config:
     VOICES_DIR = "/opt/asterisk-tts-cloning/voice_samples"
     ACTIVE_VOICE_FILE = "/opt/asterisk-tts-cloning/active_voice.json"
@@ -53,6 +56,7 @@ class Config:
     TTS_CONTAINER_NAME = "coqui-tts"
     TEMP_DIR = "/tmp/tts-api"
     GENERATED_AUDIO_DIR = "/app/voice_samples/{voice_name}/generated"  # Template path
+    ASTERISK_RECORDINGS_DIR = os.environ.get("ASTERISK_RECORDINGS_DIR", "/var/spool/asterisk/monitor")
     
     @classmethod
     def get_generated_dir(cls, voice_name: str) -> str:
@@ -64,8 +68,19 @@ class Config:
         """Ensure necessary directories exist"""
         os.makedirs(cls.VOICES_DIR, exist_ok=True)
         os.makedirs(cls.TEMP_DIR, exist_ok=True)
+    
+    @classmethod
+    def validate_asterisk_dir(cls):
+        """Validates that the Asterisk recordings directory exists and is accessible"""
+        if not os.path.exists(cls.ASTERISK_RECORDINGS_DIR):
+            logger.warning(f"Asterisk recordings directory not found: {cls.ASTERISK_RECORDINGS_DIR}")
+            return False
+        return True
 
 Config.ensure_dirs()
+Config.validate_asterisk_dir()
+
+logger.info(f"Asterisk recordings directory: {Config.ASTERISK_RECORDINGS_DIR}")
 
 # Models
 class TTSRequest(BaseModel):
@@ -108,6 +123,7 @@ class VoiceSample(BaseModel):
 class SamplesResponse(BaseModel):
     samples: List[VoiceSample]
     count: int
+    
     
 # Helper functions
 def get_active_voice() -> Optional[str]:
@@ -932,7 +948,16 @@ async def get_processed_file(voice_name: str, filename: str):
             raise e
         logger.error(f"Error getting processed file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get processed file: {str(e)}")
-        
+
+app.include_router(asterisk_router)
+app.include_router(dialer_router)
+
+# Initialize call records directory
+import os
+CALL_RECORDS_FILE = os.environ.get("CALL_RECORDS_FILE", "/opt/asterisk-tts-cloning/call_records.json")
+os.makedirs(os.path.dirname(CALL_RECORDS_FILE), exist_ok=True)
+logger.info(f"Call records file: {CALL_RECORDS_FILE}")        
+
 # Run the server
 if __name__ == "__main__":
     import uvicorn
