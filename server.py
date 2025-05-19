@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import mysql.connector
+from mysql.connector import Error
 
-from fastapi import FastAPI, HTTPException, File, UploadFile, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -57,6 +59,7 @@ class Config:
     TEMP_DIR = "/tmp/tts-api"
     GENERATED_AUDIO_DIR = "/app/voice_samples/{voice_name}/generated"  # Template path
     ASTERISK_RECORDINGS_DIR = os.environ.get("ASTERISK_RECORDINGS_DIR", "/var/spool/asterisk/monitor")
+    ASTERISK_SOUNDS_DIR = os.environ.get("ASTERISK_SOUNDS_DIR", "/var/lib/asterisk/sounds/custom")
     
     @classmethod
     def get_generated_dir(cls, voice_name: str) -> str:
@@ -949,6 +952,151 @@ async def get_processed_file(voice_name: str, filename: str):
         logger.error(f"Error getting processed file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get processed file: {str(e)}")
 
+@app.post("/api/tts/save-for-call")
+async def save_tts_for_call(
+    audio: UploadFile = File(...),
+    text: str = Form(...),
+    voice: str = Form(...)
+):
+    """Save a TTS audio file for later use in a call and return a file ID"""
+    try:
+        # Create unique ID for the file
+        file_id = f"{int(time.time())}_{os.urandom(4).hex()}"
+        
+        # Create directory for storing TTS files if it doesn't exist
+        tts_dir = Path(Config.ASTERISK_SOUNDS_DIR)
+        os.makedirs(tts_dir, exist_ok=True)
+        print(f"tts_dir {tts_dir}")
+        # Create directories for the file and its metadata
+        wav_path = tts_dir / f"tts-{file_id}.wav"
+        gsm_path = tts_dir / f"tts-{file_id}.gsm"
+        metadata_path = tts_dir / f"tts-{file_id}.json"
+        
+        # Save the uploaded WAV file
+        content = await audio.read()
+        with open(wav_path, "wb") as f:
+            f.write(content)
+        
+        # Convert to GSM format for Asterisk
+        try:
+            convert_cmd = [
+                "sox",
+                str(wav_path),
+                "-r", "8000",   # Sample rate
+                "-c", "1",      # Mono
+                str(gsm_path)
+            ]
+            
+            result = subprocess.run(convert_cmd, capture_output=True, text=True)
+            delete_cmd = [
+                "rm",
+                str(wav_path)
+            ]
+            
+            result = subprocess.run(delete_cmd, capture_output=True, text=True)
+            print(f"{result}")
+            if result.returncode != 0:
+                logger.warning(f"Failed to convert to GSM format: {result.stderr}")
+                # Continue even if GSM conversion fails - we'll just use WAV
+        except Exception as e:
+            logger.warning(f"Error converting to GSM format: {e}")
+        
+        
+        # Save metadata
+        metadata = {
+            "id": file_id,
+            "text": text,
+            "voice": voice,
+            "wav_path": str(wav_path),
+            "gsm_path": str(gsm_path) if os.path.exists(gsm_path) else None,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        return {
+            "status": "success",
+            "message": "TTS saved successfully for call usage",
+            "file_id": file_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving TTS for call: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save TTS: {str(e)}")
+ 
+@app.get("/api/tts/saved-recordings")
+async def get_saved_recordings():
+    """Get list of saved TTS recordings in Asterisk sounds directory"""
+    try:
+        recordings_dir = "/var/lib/asterisk/sounds/custom"
+        recordings = []
+        
+        # Look for JSON metadata files that accompany the recordings
+        json_files = list(Path(recordings_dir).glob("tts-*.json"))
+        
+        for json_file in json_files:
+            try:
+                with open(json_file, 'r') as f:
+                    metadata = json.load(f)
+                
+                # Check if WAV or GSM file exists
+                wav_path = metadata.get('wav_path')
+                gsm_path = metadata.get('gsm_path')
+                
+                file_exists = (wav_path and os.path.exists(wav_path)) or (gsm_path and os.path.exists(gsm_path))
+                
+                if file_exists:
+                    recordings.append({
+                        "id": metadata.get('id'),
+                        "text": metadata.get('text'),
+                        "voice": metadata.get('voice'),
+                        "created_at": metadata.get('created_at')
+                    })
+            except Exception as e:
+                logger.warning(f"Error loading metadata from {json_file}: {e}")
+        
+        # Sort by creation date, newest first
+        recordings.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return {"recordings": recordings}
+    except Exception as e:
+        logger.error(f"Error getting saved recordings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get saved recordings: {str(e)}")
+
+@app.get("/api/tts/recording/{recording_id}")
+async def get_saved_recording(recording_id: str):
+    """Get a saved TTS recording by ID"""
+    try:
+        # Look for the metadata file
+        recordings_dir = "/var/lib/asterisk/sounds/custom"
+        metadata_path = os.path.join(recordings_dir, f"tts-{recording_id}.json")
+        
+        if not os.path.exists(metadata_path):
+            raise HTTPException(status_code=404, detail="Recording not found")
+        
+        # Load metadata
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        
+        # Determine which file to return (WAV or GSM)
+        wav_path = metadata.get('wav_path')
+        gsm_path = metadata.get('gsm_path')
+        
+        if wav_path and os.path.exists(wav_path):
+            return FileResponse(wav_path, media_type="audio/wav")
+        elif gsm_path and os.path.exists(gsm_path):
+            return FileResponse(gsm_path, media_type="audio/x-gsm")
+        else:
+            raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"Error getting saved recording: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get recording: {str(e)}")
+
+        
 app.include_router(asterisk_router)
 app.include_router(dialer_router)
 

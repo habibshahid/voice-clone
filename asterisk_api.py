@@ -17,7 +17,8 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-
+import mysql.connector
+from mysql.connector import Error
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -357,6 +358,46 @@ async def import_asterisk_recordings(
         "voice_name": voice_name
     }
 
+@router.get("/sip/agents")
+async def get_sip_agents():
+    """Get SIP peer agents from the MySQL database"""
+    try:
+        # Connect to MySQL
+        connection = mysql.connector.connect(
+            host="localhost",
+            database="switchboard",
+            user="root",  # Replace with your MySQL username
+            password="zPFv6XIPyrvFTEAYwY"  # Replace with your MySQL password
+        )
+        
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            
+            # Query for SIP extensions (non-trunks)
+            cursor.execute("SELECT name, callerid FROM sippeers WHERE category != 'trunk' OR category IS NULL")
+            extensions = cursor.fetchall()
+            
+            # Query for SIP trunks
+            cursor.execute("SELECT name, callerid FROM sippeers WHERE category = 'trunk'")
+            trunks = cursor.fetchall()
+            
+            # Format the results
+            result = {
+                "extensions": [{"name": ext["name"], "callerid": ext["callerid"]} for ext in extensions],
+                "trunks": [{"name": trunk["name"], "callerid": trunk["callerid"]} for trunk in trunks]
+            }
+            
+            cursor.close()
+            connection.close()
+            
+            return result
+    except Error as e:
+        logger.error(f"Error accessing MySQL database: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    # Return empty lists if there's an issue
+    return {"extensions": [], "trunks": []}
+    
 def trigger_voice_processing(voice_name: str):
     """Trigger voice processing after importing recordings"""
     try:

@@ -59,14 +59,25 @@
                             </div>
                         </div>
                         
-                        <div>
-                            <label for="sipName" class="block text-sm font-medium text-gray-700 mb-1">SIP Agent Name</label>
-                            <select id="sipName" name="sipName" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Select Agent</option>
-                                <!-- These will be populated dynamically -->
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label for="sipName" class="block text-sm font-medium text-gray-700 mb-1">SIP Agent Name</label>
+								<select id="sipName" name="sipName" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+									<option value="">Select Agent</option>
+									<!-- These will be populated dynamically -->
+									
+								</select>
+							</div>
+							
+							<div>
+								<label for="sipTrunk" class="block text-sm font-medium text-gray-700 mb-1">SIP Trunk</label>
+								<select id="sipTrunk" name="sipTrunk" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+									<option value="">Select Agent</option>
+									<!-- These will be populated dynamically -->
+									
+								</select>
+							</div>
+						</div>
                         
                         <!-- TTS Message -->
                         <div>
@@ -212,6 +223,8 @@
             // Call controls
             document.getElementById('playTtsButton').addEventListener('click', playTTS);
             document.getElementById('hangupButton').addEventListener('click', hangupCall);
+			
+			loadSavedRecordings();
         }
         
         // Load available voices
@@ -246,39 +259,6 @@
                     console.error('Failed to load voices:', error);
                     showNotification('Failed to load voices', 'error');
                 });
-        }
-        
-        // Load available SIP agents
-        function loadAgents() {
-            // This would typically fetch from your backend
-            // For now, we'll use the static list in the HTML
-            
-            // Example of how you would implement this:
-            /*
-            fetch(`${API_BASE_URL}/api/sip/agents`)
-                .then(response => response.json())
-                .then(data => {
-                    agents = data.agents || [];
-                    const sipSelect = document.getElementById('sipName');
-                    
-                    // Clear existing options
-                    while (sipSelect.options.length > 1) {
-                        sipSelect.remove(1);
-                    }
-                    
-                    // Add agents
-                    agents.forEach(agent => {
-                        const option = document.createElement('option');
-                        option.value = agent.name;
-                        option.textContent = agent.displayName || agent.name;
-                        sipSelect.appendChild(option);
-                    });
-                })
-                .catch(error => {
-                    console.error('Failed to load agents:', error);
-                    showNotification('Failed to load SIP agents', 'error');
-                });
-            */
         }
         
         // Load recent calls
@@ -460,76 +440,78 @@
         
         // Start a new call
         function startCall() {
-            const callerId = document.getElementById('callerID').value;
-            const destination = document.getElementById('destination').value;
-            const sipName = document.getElementById('sipName').value;
-            const message = document.getElementById('ttsMessage').value;
-            const voice = document.getElementById('voiceSelect').value;
-            
-            if (!destination || !sipName || !message || !voice) {
-                showNotification('Please fill all required fields', 'error');
-                return;
-            }
-            
-            // Check if TTS has been saved for call
-            if (!ttsAudioId) {
-                showNotification('Please preview and save TTS for call first', 'warning');
-                return;
-            }
-            
-            // Disable the dial button
-            const dialButton = document.getElementById('dialButton');
-            dialButton.disabled = true;
-            dialButton.classList.add('btn-disabled');
-            dialButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Initiating Call...';
-            
-            // Prepare the call request
-            const callRequest = {
-                caller_id: callerId,
-                destination: destination,
-                sip_name: sipName,
-                message: message,
-                voice: voice,
-                tts_file_id: ttsAudioId  // Include the pre-generated TTS file ID
-            };
-            
-            // Send the request to initiate the call
-            fetch(`${API_BASE_URL}/api/calls/initiate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(callRequest),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showNotification('Call initiated successfully', 'success');
-                    
-                    // Store the call ID and update the UI
-                    activeCallId = data.call_id;
-                    updateCallUI(data.call);
-                    
-                    // Start the call timer
-                    startCallTimer();
-                    
-                    // Refresh recent calls
-                    loadRecentCalls();
-                } else {
-                    throw new Error(data.message || 'Failed to initiate call');
-                }
-            })
-            .catch(error => {
-                console.error('Failed to initiate call:', error);
-                showNotification('Failed to initiate call: ' + error.message, 'error');
-            })
-            .finally(() => {
-                // Reset button state
-                dialButton.disabled = false;
-                dialButton.classList.remove('btn-disabled');
-                dialButton.innerHTML = '<i class="fas fa-phone mr-2"></i> Start Call';
-            });
-        }
+			const callerId = document.getElementById('callerID').value;
+			const destination = document.getElementById('destination').value;
+			const sipName = document.getElementById('sipName').value;
+			const sipTrunk = document.getElementById('sipTrunk').value;
+			const message = document.getElementById('ttsMessage').value;
+			const voice = document.getElementById('voiceSelect').value;
+			
+			if (!destination || !sipName || !message || !voice) {
+				showNotification('Please fill all required fields', 'error');
+				return;
+			}
+			
+			// Check if TTS has been saved for call
+			if (!ttsAudioId) {
+				showNotification('Please preview and save TTS for call first', 'warning');
+				return;
+			}
+			
+			// Disable the dial button
+			const dialButton = document.getElementById('dialButton');
+			dialButton.disabled = true;
+			dialButton.classList.add('btn-disabled');
+			dialButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Initiating Call...';
+			
+			// Prepare the call request
+			const callRequest = {
+				caller_id: callerId,
+				destination: destination,
+				sip_name: sipName,
+				sip_trunk: sipTrunk,
+				message: message,
+				voice: voice,
+				tts_file_id: ttsAudioId  // Include the pre-generated TTS file ID
+			};
+			
+			// Send the request to initiate the call
+			fetch(`${API_BASE_URL}/api/calls/initiate`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(callRequest),
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.status === 'success') {
+					showNotification('Call initiated successfully', 'success');
+					
+					// Store the call ID and update the UI
+					activeCallId = data.call_id;
+					updateCallUI(data.call);
+					
+					// Start the call timer
+					startCallTimer();
+					
+					// Refresh recent calls
+					loadRecentCalls();
+				} else {
+					throw new Error(data.message || 'Failed to initiate call');
+				}
+			})
+			.catch(error => {
+				console.error('Failed to initiate call:', error);
+				showNotification('Failed to initiate call: ' + error.message, 'error');
+			})
+			.finally(() => {
+				// Reset button state
+				dialButton.disabled = false;
+				dialButton.classList.remove('btn-disabled');
+				dialButton.innerHTML = '<i class="fas fa-phone mr-2"></i> Start Call';
+			});
+		}
         
         // Update call status periodically
         function updateCallStatus() {
@@ -588,6 +570,8 @@
                 callControls.classList.remove('hidden');
                 document.getElementById('playTtsButton').disabled = false;
                 document.getElementById('playTtsButton').classList.remove('btn-disabled');
+				document.getElementById('hangupButton').disabled = false;
+                document.getElementById('hangupButton').classList.remove('btn-disabled');
             } else if (call.status === 'completed' || call.status === 'failed') {
                 callControls.classList.add('hidden');
             } else {
@@ -626,41 +610,41 @@
         
         // Play TTS in the active call
         function playTTS() {
-            if (!activeCallId) {
-                showNotification('No active call', 'error');
-                return;
-            }
-            
-            // Update button state
-            const playButton = document.getElementById('playTtsButton');
-            const originalText = playButton.innerHTML;
-            playButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Playing...';
-            playButton.disabled = true;
-            
-            // Send request to play TTS
-            fetch(`${API_BASE_URL}/api/calls/${activeCallId}/play-tts`, {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showNotification('TTS playing in call', 'success');
-                } else {
-                    throw new Error(data.message || 'Failed to play TTS');
-                }
-            })
-            .catch(error => {
-                console.error('Failed to play TTS:', error);
-                showNotification('Failed to play TTS: ' + error.message, 'error');
-            })
-            .finally(() => {
-                // Reset button state after a delay to simulate playing
-                setTimeout(() => {
-                    playButton.innerHTML = originalText;
-                    playButton.disabled = false;
-                }, 3000);
-            });
-        }
+			if (!activeCallId) {
+				showNotification('No active call', 'error');
+				return;
+			}
+			
+			// Update button state
+			const playButton = document.getElementById('playTtsButton');
+			const originalText = playButton.innerHTML;
+			playButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Playing...';
+			playButton.disabled = true;
+			
+			// Send request to play TTS
+			fetch(`${API_BASE_URL}/api/calls/${activeCallId}/play-tts`, {
+				method: 'POST'
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.status === 'success') {
+					showNotification('TTS playing in call', 'success');
+				} else {
+					throw new Error(data.message || 'Failed to play TTS');
+				}
+			})
+			.catch(error => {
+				console.error('Failed to play TTS:', error);
+				showNotification('Failed to play TTS: ' + error.message, 'error');
+			})
+			.finally(() => {
+				// Reset button state after a delay to simulate playing
+				setTimeout(() => {
+					playButton.innerHTML = originalText;
+					playButton.disabled = false;
+				}, 3000);
+			});
+		}
         
         // Hangup the active call
         function hangupCall() {
@@ -756,6 +740,196 @@
                 notification.remove();
             }, 3000);
         }
+		
+		function loadAgents() {
+			fetch(`${API_BASE_URL}/api/asterisk/sip/agents`)
+				.then(response => response.json())
+				.then(data => {
+					agents = data || { extensions: [], trunks: [] };
+					const sipSelect = document.getElementById('sipName');
+					
+					// Clear existing options
+					while (sipSelect.options.length > 1) {
+						sipSelect.remove(1);
+					}
+					
+					if (agents.extensions && agents.extensions.length > 0) {						
+						agents.extensions.forEach(ext => {
+							const option = document.createElement('option');
+							option.value = `${ext.name}`;
+							option.textContent = ext.name;
+							sipSelect.appendChild(option);
+						});
+					}
+					
+					const sipSelectTrunk = document.getElementById('sipTrunk');
+					
+					// Clear existing options
+					while (sipSelectTrunk.options.length > 1) {
+						sipSelectTrunk.remove(1);
+					}
+					
+					// Add Trunks group
+					if (agents.trunks && agents.trunks.length > 0) {
+						const trunksGroup = document.createElement('optgroup');
+						trunksGroup.label = 'Trunks';
+						
+						agents.trunks.forEach(trunk => {
+							const option = document.createElement('option');
+							option.value = trunk.name;
+							option.textContent = trunk.name;
+							sipSelectTrunk.appendChild(option);
+						});
+					}
+				})
+				.catch(error => {
+					console.error('Failed to load SIP agents:', error);
+					showNotification('Failed to load SIP agents. Using default values.', 'warning');
+					
+					// Add default option if loading fails
+					const sipSelect = document.getElementById('sipName');
+					const option = document.createElement('option');
+					option.value = 'SIP/admin';
+					option.textContent = 'Admin (Default)';
+					sipSelect.appendChild(option);
+				});
+		}
+
+		// Add a new function to load saved recordings
+		function loadSavedRecordings() {
+			fetch(`${API_BASE_URL}/api/tts/saved-recordings`)
+				.then(response => response.json())
+				.then(data => {
+					const recordings = data.recordings || [];
+					
+					// Add UI for saved recordings if not already present
+					let savedRecordingsSection = document.getElementById('savedRecordingsSection');
+					
+					if (!savedRecordingsSection) {
+						// Create section for saved recordings
+						savedRecordingsSection = document.createElement('div');
+						savedRecordingsSection.id = 'savedRecordingsSection';
+						savedRecordingsSection.className = 'mt-6 bg-white rounded-lg shadow-md p-6';
+						
+						savedRecordingsSection.innerHTML = `
+							<div class="flex justify-between items-center mb-4">
+								<h3 class="text-lg font-medium text-gray-800">Saved Recordings</h3>
+								<button id="refreshRecordingsButton" class="text-sm text-blue-600 hover:text-blue-900">
+									<i class="fas fa-sync-alt mr-1"></i> Refresh
+								</button>
+							</div>
+							<div id="savedRecordingsList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+						`;
+						
+						// Insert after audio preview section
+						const audioPreview = document.getElementById('audioPreview');
+						audioPreview.parentNode.insertBefore(savedRecordingsSection, audioPreview.nextSibling);
+						
+						// Add refresh button event listener
+						document.getElementById('refreshRecordingsButton').addEventListener('click', loadSavedRecordings);
+					}
+					
+					// Populate the list
+					const savedRecordingsList = document.getElementById('savedRecordingsList');
+					
+					if (recordings.length === 0) {
+						savedRecordingsList.innerHTML = '<p class="text-gray-500 text-center py-4">No saved recordings found</p>';
+						return;
+					}
+					
+					savedRecordingsList.innerHTML = '';
+					
+					recordings.forEach(recording => {
+						const recordingItem = document.createElement('div');
+						recordingItem.className = 'p-3 border border-gray-200 rounded-md hover:bg-gray-50';
+						
+						// Format date
+						let dateText = '';
+						if (recording.created_at) {
+							const date = new Date(recording.created_at);
+							dateText = date.toLocaleString();
+						}
+						
+						recordingItem.innerHTML = `
+							<div class="flex justify-between items-start">
+								<div class="flex-grow">
+									<div class="text-sm font-medium text-gray-900 truncate">${recording.text}</div>
+									<div class="text-xs text-gray-500">Voice: ${recording.voice}</div>
+									<div class="text-xs text-gray-400">${dateText}</div>
+								</div>
+								<div class="flex space-x-2">
+									<button class="play-recording text-blue-600 hover:text-blue-900" data-id="${recording.id}">
+										<i class="fas fa-play"></i>
+									</button>
+									<button class="use-recording text-green-600 hover:text-green-900" data-id="${recording.id}" data-text="${escapeHtml(recording.text)}" data-voice="${recording.voice}">
+										<i class="fas fa-check"></i>
+									</button>
+								</div>
+							</div>
+						`;
+						
+						// Add event listeners
+						recordingItem.querySelector('.play-recording').addEventListener('click', function() {
+							playRecording(recording.id);
+						});
+						
+						recordingItem.querySelector('.use-recording').addEventListener('click', function() {
+							useRecording(recording.id, recording.text, recording.voice);
+						});
+						
+						savedRecordingsList.appendChild(recordingItem);
+					});
+				})
+				.catch(error => {
+					console.error('Failed to load saved recordings:', error);
+					showNotification('Failed to load saved recordings', 'error');
+				});
+		}
+
+		// Helper function to escape HTML in attribute values
+		function escapeHtml(str) {
+			return str
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		}
+
+		// Function to play a saved recording
+		function playRecording(recordingId) {
+			// Show audio preview section
+			const audioPreview = document.getElementById('audioPreview');
+			audioPreview.classList.remove('hidden');
+			
+			// Get audio player
+			const audioPlayer = document.getElementById('audioPlayer');
+			const audioSource = document.getElementById('audioSource');
+			
+			// Set source to the recording
+			audioSource.src = `${API_BASE_URL}/api/tts/recording/${recordingId}`;
+			audioPlayer.load();
+			audioPlayer.play();
+		}
+
+		// Function to use a saved recording for a call
+		function useRecording(recordingId, text, voice) {
+			// Set form values
+			document.getElementById('ttsMessage').value = text;
+			document.getElementById('voiceSelect').value = voice;
+			
+			// Store the TTS file ID for later use
+			ttsAudioId = recordingId;
+			
+			// Update UI to show it's ready
+			const saveButton = document.getElementById('saveForCallButton');
+			saveButton.innerHTML = '<i class="fas fa-check mr-2"></i> Ready for Call';
+			saveButton.className = 'px-3 py-1 bg-green-200 text-green-800 rounded hover:bg-green-300 focus:outline-none focus:ring-2 focus:ring-green-400 inline-flex items-center';
+			saveButton.classList.remove('hidden');
+			
+			showNotification('Saved recording selected for call', 'success');
+		}
+
     </script>
 </body>
 </html>
