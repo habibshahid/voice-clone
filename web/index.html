@@ -50,13 +50,18 @@
 <body class="bg-gray-100 min-h-screen p-8">
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
-        <header class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-                <i class="fas fa-microphone-alt mr-3 text-blue-600"></i>
-                Voice Cloning Management Dashboard
-            </h1>
-            <p class="text-gray-600 mt-2">Create, manage, and deploy voice clones for your Asterisk PBX system</p>
-        </header>
+        <header class="bg-white rounded-lg shadow-md p-6 mb-6">
+			<div class="flex justify-between items-center">
+				<h1 class="text-3xl font-bold text-gray-800 flex items-center">
+					<i class="fas fa-microphone-alt text-blue-600 mr-3"></i>
+					Voice Cloning Management Dashboard
+				</h1>
+				<button id="logoutButton" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 inline-flex items-center">
+					<i class="fas fa-sign-out-alt mr-2"></i> Logout
+				</button>
+			</div>
+			<p class="text-gray-600 mt-2">Create, manage, and deploy voice clones for your Asterisk PBX system</p>
+		</header>
 
         <!-- System Health -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -401,6 +406,29 @@
     
     // Initialize the application
     document.addEventListener('DOMContentLoaded', function() {
+		const authToken = localStorage.getItem('auth_token');
+		if (!authToken) {
+            window.location.href = 'login.html';
+            return;
+        }
+		fetch('/api/health', {
+            headers: {
+                'Authorization': 'Basic ' + authToken
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Token is invalid, redirect to login
+                localStorage.removeItem('auth_token');
+                window.location.href = 'login.html';
+            }
+        })
+        .catch(error => {
+            console.error('Auth check failed:', error);
+            localStorage.removeItem('auth_token');
+            window.location.href = 'login.html';
+        });
+		
         initializeEventListeners();
         loadVoices();
         checkSystemHealth();
@@ -410,6 +438,43 @@
         setInterval(loadVoices, 10000); // Refresh voice list every 10 seconds
     });
     
+	const originalFetch = window.fetch;
+    window.fetch = function() {
+        const authToken = localStorage.getItem('auth_token');
+        
+        if (authToken) {
+            // If first argument is a URL string
+            if (typeof arguments[0] === 'string') {
+                if (!arguments[1]) {
+                    arguments[1] = {
+                        headers: {
+                            'Authorization': 'Basic ' + authToken
+                        }
+                    };
+                } else if (!arguments[1].headers) {
+                    arguments[1].headers = {
+                        'Authorization': 'Basic ' + authToken
+                    };
+                } else {
+                    arguments[1].headers['Authorization'] = 'Basic ' + authToken;
+                }
+            }
+            // If first argument is a Request object
+            else if (arguments[0] instanceof Request) {
+                // Create new headers
+                const newHeaders = new Headers(arguments[0].headers);
+                newHeaders.append('Authorization', 'Basic ' + authToken);
+                
+                // Create new request with auth header
+                arguments[0] = new Request(arguments[0], {
+                    headers: newHeaders
+                });
+            }
+        }
+        
+        return originalFetch.apply(this, arguments);
+    };
+	
     // Tab Navigation
     function showVoicesTab() {
         document.getElementById('voicesContent').classList.remove('hidden');
@@ -2816,6 +2881,11 @@
 			function hideProcessingStatus() {
 				document.getElementById('asteriskProcessingStatus').classList.add('hidden');
 			}
+			
+			document.getElementById('logoutButton').addEventListener('click', function() {
+				localStorage.removeItem('auth_token');
+				window.location.href = 'login.html';
+			});
     </script>
 </body>
 </html>

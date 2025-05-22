@@ -17,7 +17,9 @@ from datetime import datetime
 import mysql.connector
 from mysql.connector import Error
 
-from fastapi import FastAPI, APIRouter, HTTPException, File, UploadFile, Form, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, File, UploadFile, Form, BackgroundTasks, Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import secrets
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +32,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Voice Cloning API")
+
+security = HTTPBasic()
+
+USERNAME = os.environ.get("API_USERNAME", "admin")
+PASSWORD = os.environ.get("API_PASSWORD", "voice123")  # Change this to a strong password
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -127,7 +135,19 @@ class SamplesResponse(BaseModel):
     samples: List[VoiceSample]
     count: int
     
+def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, USERNAME)
+    correct_password = secrets.compare_digest(credentials.password, PASSWORD)
     
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    
+    return credentials.username    
+
 # Helper functions
 def get_active_voice() -> Optional[str]:
     """Get currently active voice"""
@@ -196,7 +216,7 @@ def is_processing() -> int:
 
 # API endpoints
 @app.get("/api/health", response_model=SystemHealth)
-async def health_check():
+async def health_check(username: str = Depends(verify_credentials)):
     """Check system health and status"""
     return SystemHealth(
         status="healthy",

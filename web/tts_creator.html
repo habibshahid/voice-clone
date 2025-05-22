@@ -70,14 +70,19 @@
 </head>
 <body class="bg-gray-100 min-h-screen p-4">
     <div class="max-w-4xl mx-auto">
-        <header class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-                <i class="fas fa-volume-up text-blue-600 mr-3"></i>
-                TTS Creator
-            </h1>
-            <p class="text-gray-600 mt-2">Create, play, and download text-to-speech audio files</p>
-        </header>
-
+		<header class="bg-white rounded-lg shadow-md p-6 mb-6">
+			<div class="flex justify-between items-center">
+				<h1 class="text-3xl font-bold text-gray-800 flex items-center">
+					<i class="fas fa-microphone-alt text-blue-600 mr-3"></i>
+					TTS Creator
+				</h1>
+				<button id="logoutButton" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 inline-flex items-center">
+					Logout
+				</button>
+			</div>
+			<p class="text-gray-600 mt-2">Create, manage, and deploy voice clones </p>
+		</header>
+		
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- TTS Generator Section -->
             <div class="lg:col-span-2">
@@ -201,6 +206,32 @@
 		
         // Initialize the application
 		document.addEventListener('DOMContentLoaded', function() {
+			const authToken = localStorage.getItem('auth_token');
+        
+			// If no auth token is stored, redirect to login
+			if (!authToken) {
+				window.location.href = 'login.html';
+				return;
+			}
+			
+			// Verify auth token is still valid
+			fetch('/api/health', {
+				headers: {
+					'Authorization': 'Basic ' + authToken
+				}
+			})
+			.then(response => {
+				if (!response.ok) {
+					// Token is invalid, redirect to login
+					localStorage.removeItem('auth_token');
+					window.location.href = 'login.html';
+				}
+			})
+			.catch(error => {
+				console.error('Auth check failed:', error);
+				localStorage.removeItem('auth_token');
+				window.location.href = 'login.html';
+			});
 			const params = new URLSearchParams(window.location.search);
 			currentVoice = params.get('voice');
 			initializeEventListeners();
@@ -552,6 +583,43 @@
             }, 3000);
         }
 		
+		const originalFetch = window.fetch;
+		window.fetch = function() {
+			const authToken = localStorage.getItem('auth_token');
+			
+			if (authToken) {
+				// If first argument is a URL string
+				if (typeof arguments[0] === 'string') {
+					if (!arguments[1]) {
+						arguments[1] = {
+							headers: {
+								'Authorization': 'Basic ' + authToken
+							}
+						};
+					} else if (!arguments[1].headers) {
+						arguments[1].headers = {
+							'Authorization': 'Basic ' + authToken
+						};
+					} else {
+						arguments[1].headers['Authorization'] = 'Basic ' + authToken;
+					}
+				}
+				// If first argument is a Request object
+				else if (arguments[0] instanceof Request) {
+					// Create new headers
+					const newHeaders = new Headers(arguments[0].headers);
+					newHeaders.append('Authorization', 'Basic ' + authToken);
+					
+					// Create new request with auth header
+					arguments[0] = new Request(arguments[0], {
+						headers: newHeaders
+					});
+				}
+			}
+			
+			return originalFetch.apply(this, arguments);
+		};
+		
 		// Load history from server for a specific voice
 		function loadHistoryFromServer(voiceName) {
 			if (!voiceName) return;
@@ -577,6 +645,11 @@
 					showNotification('Failed to load history', 'error');
 				});
 		}
+		
+		document.getElementById('logoutButton').addEventListener('click', function() {
+			localStorage.removeItem('auth_token');
+			window.location.href = 'login.html';
+		});
     </script>
 </body>
 </html>

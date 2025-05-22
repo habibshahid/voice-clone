@@ -32,13 +32,18 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="max-w-6xl mx-auto p-4">
-        <header class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800 flex items-center">
-                <i class="fas fa-phone-alt text-blue-600 mr-3"></i>
-                Voice Dialer with TTS
-            </h1>
-            <p class="text-gray-600 mt-2">Make calls and play TTS messages using cloned voices</p>
-        </header>
+		<header class="bg-white rounded-lg shadow-md p-6 mb-6">
+			<div class="flex justify-between items-center">
+				<h1 class="text-3xl font-bold text-gray-800 flex items-center">
+					<i class="fas fa-microphone-alt text-blue-600 mr-3"></i>
+					Voice Dialer with TTS
+				</h1>
+				<button id="logoutButton" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 inline-flex items-center">
+					<i class="fas fa-sign-out-alt mr-2"></i> Logout
+				</button>
+			</div>
+			<p class="text-gray-600 mt-2">Create, manage, and deploy voice clones for your Asterisk PBX system</p>
+		</header>
         
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Dialer Section -->
@@ -171,6 +176,9 @@
                     <!-- Recent Calls List -->
                     <div class="mt-6 pt-4 border-t border-gray-200">
                         <h3 class="text-lg font-medium text-gray-800 mb-3">Recent Calls</h3>
+						<button id="clearCallsButton" class="px-2 py-1 text-xs text-red-600 hover:text-red-800 rounded border border-red-200 hover:bg-red-50">
+							<i class="fas fa-trash-alt mr-1"></i> Clear All
+						</button>
                         <ul id="recentCalls" class="space-y-2 overflow-auto max-h-64">
                             <!-- This will be populated dynamically -->
                         </ul>
@@ -197,6 +205,33 @@
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
+			const authToken = localStorage.getItem('auth_token');
+        
+			// If no auth token is stored, redirect to login
+			if (!authToken) {
+				window.location.href = 'login.html';
+				return;
+			}
+			
+			// Verify auth token is still valid
+			fetch('/api/health', {
+				headers: {
+					'Authorization': 'Basic ' + authToken
+				}
+			})
+			.then(response => {
+				if (!response.ok) {
+					// Token is invalid, redirect to login
+					localStorage.removeItem('auth_token');
+					window.location.href = 'login.html';
+				}
+			})
+			.catch(error => {
+				console.error('Auth check failed:', error);
+				localStorage.removeItem('auth_token');
+				window.location.href = 'login.html';
+			});
+			
             initializeEventListeners();
             loadVoices();
             loadAgents();
@@ -206,6 +241,43 @@
             setInterval(updateCallStatus, REFRESH_INTERVAL);
         });
         
+		const originalFetch = window.fetch;
+		window.fetch = function() {
+			const authToken = localStorage.getItem('auth_token');
+			
+			if (authToken) {
+				// If first argument is a URL string
+				if (typeof arguments[0] === 'string') {
+					if (!arguments[1]) {
+						arguments[1] = {
+							headers: {
+								'Authorization': 'Basic ' + authToken
+							}
+						};
+					} else if (!arguments[1].headers) {
+						arguments[1].headers = {
+							'Authorization': 'Basic ' + authToken
+						};
+					} else {
+						arguments[1].headers['Authorization'] = 'Basic ' + authToken;
+					}
+				}
+				// If first argument is a Request object
+				else if (arguments[0] instanceof Request) {
+					// Create new headers
+					const newHeaders = new Headers(arguments[0].headers);
+					newHeaders.append('Authorization', 'Basic ' + authToken);
+					
+					// Create new request with auth header
+					arguments[0] = new Request(arguments[0], {
+						headers: newHeaders
+					});
+				}
+			}
+			
+			return originalFetch.apply(this, arguments);
+		};
+		
         // Initialize event listeners
         function initializeEventListeners() {
             // Form submission
@@ -223,10 +295,37 @@
             // Call controls
             document.getElementById('playTtsButton').addEventListener('click', playTTS);
             document.getElementById('hangupButton').addEventListener('click', hangupCall);
+			document.getElementById('clearCallsButton').addEventListener('click', clearAllCalls);
 			
 			loadSavedRecordings();
         }
         
+		function clearAllCalls() {
+			if (!confirm('Are you sure you want to clear all call records? This cannot be undone.')) {
+				return;
+			}
+			
+			fetch(`${API_BASE_URL}/api/calls/clear`, {
+				method: 'DELETE'
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.status === 'success') {
+					showNotification('Call records cleared successfully', 'success');
+					
+					// Refresh the recent calls list
+					const recentCalls = document.getElementById('recentCalls');
+					recentCalls.innerHTML = '<li class="text-center text-gray-500 py-2">No recent calls</li>';
+				} else {
+					throw new Error(data.message || 'Failed to clear call records');
+				}
+			})
+			.catch(error => {
+				console.error('Failed to clear call records:', error);
+				showNotification('Failed to clear call records: ' + error.message, 'error');
+			});
+		}
+
         // Load available voices
         function loadVoices() {
             fetch(`${API_BASE_URL}/api/voices`)
@@ -930,6 +1029,10 @@
 			showNotification('Saved recording selected for call', 'success');
 		}
 
+		document.getElementById('logoutButton').addEventListener('click', function() {
+			localStorage.removeItem('auth_token');
+			window.location.href = 'login.html';
+		});
     </script>
 </body>
 </html>

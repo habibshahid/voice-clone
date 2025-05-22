@@ -888,6 +888,35 @@ def ami_send_action(sock, action, parameters=None):
         logger.error(f"AMI send action error: {e}")
         return None
 
+@router.delete("/clear", response_model=CallResponse)
+async def clear_call_records():
+    """Clear all call records"""
+    try:
+        # Initialize empty records array
+        records = []
+        
+        # Save empty records list
+        success = save_call_records(records)
+        
+        if not success:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": "Failed to clear call records"}
+            )
+        
+        return {
+            "status": "success",
+            "message": "All call records cleared successfully",
+            "call_id": None,
+            "call": None
+        }
+    except Exception as e:
+        logger.error(f"Error clearing call records: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
+        
 def ami_close(sock):
     """Close AMI connection"""
     try:
