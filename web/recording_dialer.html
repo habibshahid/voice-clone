@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recording Dialer - Voice Cloning</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .call-status-badge {
+            transition: all 0.3s ease;
+        }
+        
+        .animate-ping {
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+        }
+        
+        .btn-disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .recording-indicator {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-4xl mx-auto p-4">
+        <header class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-phone text-red-600 mr-3"></i>
+                    Recording Dialer
+                </h1>
+                <div class="flex space-x-4">
+                    <a href="index.html" class="px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 inline-flex items-center">
+                        <i class="fas fa-arrow-left mr-2"></i> Back to Dashboard
+                    </a>
+                    <button id="logoutButton" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 inline-flex items-center">
+                        <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                    </button>
+                </div>
+            </div>
+            <p class="text-gray-600 mt-2">Make outbound calls for voice recording and cloning</p>
+        </header>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Dialer Section -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-microphone text-red-600 mr-2"></i>
+                        New Recording Call
+                    </h2>
+                    
+                    <form id="recordingDialerForm" class="space-y-4">
+                        <!-- Call Settings -->
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label for="callerID" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-id-card mr-1"></i>
+                                    Caller ID
+                                </label>
+                                <input type="text" id="callerID" name="callerID" required 
+                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500" 
+                                       placeholder="e.g., +447436477442">
+                                <p class="text-xs text-gray-500 mt-1">The number that will appear to the recipient</p>
+                            </div>
+                            
+                            <div>
+                                <label for="destination" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-phone mr-1"></i>
+                                    Destination Number
+                                </label>
+                                <input type="text" id="destination" name="destination" required 
+                                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500" 
+                                       placeholder="e.g., +12064248192">
+                                <p class="text-xs text-gray-500 mt-1">The number to call for recording</p>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="sipAgent" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-user mr-1"></i>
+                                    SIP Agent
+                                </label>
+                                <select id="sipAgent" name="sipAgent" required 
+                                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500">
+                                    <option value="">Select Agent</option>
+                                    <!-- These will be populated dynamically -->
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Agent extension for the call</p>
+                            </div>
+                            
+                            <div>
+                                <label for="sipGateway" class="block text-sm font-medium text-gray-700 mb-1">
+                                    <i class="fas fa-network-wired mr-1"></i>
+                                    SIP Gateway
+                                </label>
+                                <select id="sipGateway" name="sipGateway" required 
+                                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500">
+                                    <option value="">Select Gateway</option>
+                                    <!-- These will be populated dynamically -->
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Outbound gateway/trunk</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Recording Notice -->
+                        <div class="bg-red-50 border border-red-200 rounded-md p-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-exclamation-triangle text-red-600 mt-1 mr-2"></i>
+                                <div>
+                                    <h3 class="text-sm font-medium text-red-800">Recording Notice</h3>
+                                    <p class="text-sm text-red-700 mt-1">
+                                        This call will be recorded for voice cloning purposes. Ensure you have proper consent from all parties before proceeding.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="pt-4 border-t border-gray-200">
+                            <button type="submit" id="dialButton" 
+                                    class="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                <i class="fas fa-phone mr-2"></i> Start Recording Call
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Call Status Section -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6 h-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">
+                            <i class="fas fa-phone-volume mr-2"></i>
+                            Call Status
+                        </h2>
+                        <span id="callDuration" class="text-gray-600 font-mono">00:00</span>
+                    </div>
+                    
+                    <!-- Call Status Display -->
+                    <div id="callStatus" class="mb-6 text-center p-6 bg-gray-100 rounded-lg">
+                        <i class="fas fa-phone-slash text-gray-400 text-3xl mb-2"></i>
+                        <span class="text-gray-500 block">No active call</span>
+                    </div>
+                    
+                    <!-- Call Details -->
+                    <div id="callDetails" class="space-y-3 mb-6 hidden">
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">
+                                <i class="fas fa-phone mr-1"></i>
+                                To:
+                            </span>
+                            <span id="callDestination" class="text-sm font-medium text-gray-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">
+                                <i class="fas fa-user mr-1"></i>
+                                Agent:
+                            </span>
+                            <span id="callAgent" class="text-sm font-medium text-gray-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">
+                                <i class="fas fa-network-wired mr-1"></i>
+                                Gateway:
+                            </span>
+                            <span id="callGateway" class="text-sm font-medium text-gray-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">
+                                <i class="fas fa-id-card mr-1"></i>
+                                Caller ID:
+                            </span>
+                            <span id="callCallerID" class="text-sm font-medium text-gray-800"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Recording Status -->
+                    <div id="recordingStatus" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg hidden">
+                        <div class="flex items-center">
+                            <div class="recording-indicator w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                            <span class="text-red-800 font-medium">RECORDING IN PROGRESS</span>
+                        </div>
+                        <p class="text-red-700 text-sm mt-1">Call is being recorded for voice cloning</p>
+                    </div>
+                    
+                    <!-- Call Controls -->
+                    <div id="callControls" class="grid grid-cols-1 gap-3 hidden">
+                        <button id="hangupButton" 
+                                class="flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            <i class="fas fa-phone-slash mr-2"></i> End Call
+                        </button>
+                    </div>
+                    
+                    <!-- Recording Tips -->
+                    <div class="mt-6 pt-4 border-t border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-800 mb-3">
+                            <i class="fas fa-lightbulb text-yellow-500 mr-1"></i>
+                            Recording Tips
+                        </h3>
+                        <ul class="text-xs text-gray-600 space-y-1">
+                            <li>• Ensure clear audio quality</li>
+                            <li>• Speak naturally and clearly</li>
+                            <li>• Record for at least 2-3 minutes</li>
+                            <li>• Avoid background noise</li>
+                            <li>• Get proper consent before recording</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Success Modal -->
+    <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full">
+            <div class="text-center">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                    <i class="fas fa-check text-green-600"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Call Completed</h3>
+                <p class="text-sm text-gray-600 mb-4">
+                    Your recording call has been completed. The recording will be available in your Asterisk recordings for import into voice cloning.
+                </p>
+                <button id="closeSuccessModal" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuration
+        const API_BASE_URL = window.location.origin;
+        const REFRESH_INTERVAL = 2000; // 2 seconds for more frequent updates
+        
+        // Global variables
+        let activeCallId = null;
+        let callTimer = null;
+        let callStartTime = null;
+        let agents = [];
+        let gateways = [];
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            const authToken = localStorage.getItem('auth_token');
+        
+            // If no auth token is stored, redirect to login
+            if (!authToken) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            // Verify auth token is still valid
+            fetch('/api/health', {
+                headers: {
+                    'Authorization': 'Basic ' + authToken
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    localStorage.removeItem('auth_token');
+                    window.location.href = 'login.html';
+                }
+            })
+            .catch(error => {
+                console.error('Auth check failed:', error);
+                localStorage.removeItem('auth_token');
+                window.location.href = 'login.html';
+            });
+            
+            initializeEventListeners();
+            loadAgents();
+            loadGateways();
+        });
+        
+        // Auto-authentication for fetch requests
+        const originalFetch = window.fetch;
+        window.fetch = function() {
+            const authToken = localStorage.getItem('auth_token');
+            
+            if (authToken) {
+                if (typeof arguments[0] === 'string') {
+                    if (!arguments[1]) {
+                        arguments[1] = {
+                            headers: {
+                                'Authorization': 'Basic ' + authToken
+                            }
+                        };
+                    } else if (!arguments[1].headers) {
+                        arguments[1].headers = {
+                            'Authorization': 'Basic ' + authToken
+                        };
+                    } else {
+                        arguments[1].headers['Authorization'] = 'Basic ' + authToken;
+                    }
+                }
+                else if (arguments[0] instanceof Request) {
+                    const newHeaders = new Headers(arguments[0].headers);
+                    newHeaders.append('Authorization', 'Basic ' + authToken);
+                    arguments[0] = new Request(arguments[0], {
+                        headers: newHeaders
+                    });
+                }
+            }
+            
+            return originalFetch.apply(this, arguments);
+        };
+        
+        // Initialize event listeners
+        function initializeEventListeners() {
+            // Form submission
+            document.getElementById('recordingDialerForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                startRecordingCall();
+            });
+            
+            // Call controls
+            document.getElementById('hangupButton').addEventListener('click', hangupCall);
+            
+            // Success modal
+            document.getElementById('closeSuccessModal').addEventListener('click', closeSuccessModal);
+            
+            // Logout button
+            document.getElementById('logoutButton').addEventListener('click', function() {
+                localStorage.removeItem('auth_token');
+                window.location.href = 'login.html';
+            });
+        }
+        
+        // Load SIP agents
+        function loadAgents() {
+            fetch(`${API_BASE_URL}/api/asterisk/sip/agents`)
+                .then(response => response.json())
+                .then(data => {
+                    agents = data.extensions || [];
+                    const sipSelect = document.getElementById('sipAgent');
+                    
+                    // Clear existing options
+                    while (sipSelect.options.length > 1) {
+                        sipSelect.remove(1);
+                    }
+                    
+                    // Add agents
+                    agents.forEach(agent => {
+                        const option = document.createElement('option');
+                        option.value = agent.name;
+                        option.textContent = `${agent.name}`;
+                        sipSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Failed to load agents:', error);
+                    showNotification('Failed to load SIP agents', 'error');
+                });
+        }
+        
+        // Load SIP gateways
+        function loadGateways() {
+            fetch(`${API_BASE_URL}/api/asterisk/sip/agents`)
+                .then(response => response.json())
+                .then(data => {
+                    gateways = data.trunks || [];
+                    const gatewaySelect = document.getElementById('sipGateway');
+                    
+                    // Clear existing options
+                    while (gatewaySelect.options.length > 1) {
+                        gatewaySelect.remove(1);
+                    }
+                    
+                    // Add gateways
+                    gateways.forEach(gateway => {
+                        const option = document.createElement('option');
+                        option.value = gateway.name;
+                        option.textContent = `${gateway.name}`;
+                        gatewaySelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Failed to load gateways:', error);
+                    showNotification('Failed to load SIP gateways', 'error');
+                });
+        }
+        
+        // Start a recording call
+        function startRecordingCall() {
+            const callerID = document.getElementById('callerID').value.trim();
+            const destination = document.getElementById('destination').value.trim();
+            const sipAgent = document.getElementById('sipAgent').value;
+            const sipGateway = document.getElementById('sipGateway').value;
+            
+            if (!callerID || !destination || !sipAgent || !sipGateway) {
+                showNotification('Please fill all required fields', 'error');
+                return;
+            }
+            
+            // Disable the dial button
+            const dialButton = document.getElementById('dialButton');
+            dialButton.disabled = true;
+            dialButton.classList.add('btn-disabled');
+            dialButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Initiating Call...';
+            
+            // Prepare the recording call request
+            const callRequest = {
+                caller_id: callerID,
+                destination: destination,
+                sip_agent: sipAgent,
+                sip_gateway: sipGateway,
+                context: 'toOut' // Fixed context for outbound recording calls
+            };
+            
+            // Send the request to initiate the recording call
+            fetch(`${API_BASE_URL}/api/recording-calls/initiate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(callRequest),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Recording call initiated successfully', 'success');
+                    
+                    // Store the call ID and update the UI
+                    activeCallId = data.call_id;
+                    updateCallUI(data.call);
+                    
+                    // Start the call timer
+                    startCallTimer();
+                    
+                    // Start periodic status updates
+                    setInterval(updateCallStatus, REFRESH_INTERVAL);
+                } else {
+                    throw new Error(data.message || 'Failed to initiate recording call');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to initiate call:', error);
+                showNotification('Failed to initiate call: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // Reset button state
+                dialButton.disabled = false;
+                dialButton.classList.remove('btn-disabled');
+                dialButton.innerHTML = '<i class="fas fa-phone mr-2"></i> Start Recording Call';
+            });
+        }
+        
+        // Update call status periodically
+        function updateCallStatus() {
+            if (!activeCallId) return;
+            
+            fetch(`${API_BASE_URL}/api/recording-calls/${activeCallId}/status`)
+                .then(response => response.json())
+                .then(data => {
+                    updateCallUI(data.call);
+                    
+                    // If call is completed or failed, stop the timer
+                    if (data.call.status === 'completed' || data.call.status === 'failed') {
+                        stopCallTimer();
+                        
+                        // Show success modal if completed
+                        if (data.call.status === 'completed') {
+                            showSuccessModal();
+                        }
+                        
+                        activeCallId = null;
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to update call status:', error);
+                });
+        }
+        
+        // Update the UI with call details
+        function updateCallUI(call) {
+            const callStatus = document.getElementById('callStatus');
+            const callDetails = document.getElementById('callDetails');
+            const callControls = document.getElementById('callControls');
+            const recordingStatus = document.getElementById('recordingStatus');
+            
+            // Update call status with better visual indicators
+            let statusIcon = '';
+            let statusColor = '';
+            let statusText = '';
+            
+            switch(call.status) {
+                case 'initiated':
+                    statusIcon = 'fas fa-phone';
+                    statusColor = 'text-yellow-600';
+                    statusText = 'Initiating...';
+                    break;
+                case 'dialing':
+                    statusIcon = 'fas fa-phone animate-ping';
+                    statusColor = 'text-blue-600';
+                    statusText = 'Dialing...';
+                    break;
+                case 'connected':
+                    statusIcon = 'fas fa-phone-volume';
+                    statusColor = 'text-green-600';
+                    statusText = 'Connected & Recording';
+                    break;
+                case 'completed':
+                    statusIcon = 'fas fa-check-circle';
+                    statusColor = 'text-green-600';
+                    statusText = 'Call Completed';
+                    break;
+                case 'failed':
+                    statusIcon = 'fas fa-exclamation-circle';
+                    statusColor = 'text-red-600';
+                    statusText = 'Call Failed';
+                    break;
+                default:
+                    statusIcon = 'fas fa-phone-slash';
+                    statusColor = 'text-gray-400';
+                    statusText = 'No active call';
+            }
+            
+            callStatus.innerHTML = `
+                <i class="${statusIcon} text-3xl mb-2 ${statusColor}"></i>
+                <span class="block ${statusColor} font-medium">${statusText}</span>
+            `;
+            
+            // Update call details
+            if (call.status !== 'completed' && call.status !== 'failed') {
+                document.getElementById('callDestination').textContent = call.destination;
+                document.getElementById('callAgent').textContent = call.sip_agent;
+                document.getElementById('callGateway').textContent = call.sip_gateway;
+                document.getElementById('callCallerID').textContent = call.caller_id;
+                
+                // Show details
+                callDetails.classList.remove('hidden');
+                
+                // Show recording status if connected
+                if (call.status === 'connected') {
+                    recordingStatus.classList.remove('hidden');
+                    callControls.classList.remove('hidden');
+                    document.getElementById('hangupButton').disabled = false;
+                    document.getElementById('hangupButton').classList.remove('btn-disabled');
+                } else {
+                    recordingStatus.classList.add('hidden');
+                    if (call.status === 'dialing' || call.status === 'initiated') {
+                        callControls.classList.remove('hidden');
+                        document.getElementById('hangupButton').disabled = false;
+                        document.getElementById('hangupButton').classList.remove('btn-disabled');
+                    }
+                }
+            } else {
+                callDetails.classList.add('hidden');
+                callControls.classList.add('hidden');
+                recordingStatus.classList.add('hidden');
+            }
+        }
+        
+        // Hangup the active call
+        function hangupCall() {
+            if (!activeCallId) {
+                showNotification('No active call', 'error');
+                return;
+            }
+            
+            // Update button state
+            const hangupButton = document.getElementById('hangupButton');
+            hangupButton.disabled = true;
+            hangupButton.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Ending...';
+            
+            // Send request to hangup
+            fetch(`${API_BASE_URL}/api/recording-calls/${activeCallId}/hangup`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('Call ended', 'success');
+                    
+                    // Stop the timer and reset
+                    stopCallTimer();
+                    activeCallId = null;
+                    
+                    // Update UI
+                    const callStatus = document.getElementById('callStatus');
+                    callStatus.innerHTML = `
+                        <i class="fas fa-phone-slash text-gray-400 text-3xl mb-2"></i>
+                        <span class="text-gray-500 block">No active call</span>
+                    `;
+                    
+                    document.getElementById('callDetails').classList.add('hidden');
+                    document.getElementById('callControls').classList.add('hidden');
+                    document.getElementById('recordingStatus').classList.add('hidden');
+                } else {
+                    throw new Error(data.message || 'Failed to hangup call');
+                }
+            })
+            .catch(error => {
+                console.error('Failed to hangup call:', error);
+                showNotification('Failed to hangup call: ' + error.message, 'error');
+                
+                // Reset button state
+                hangupButton.disabled = false;
+                hangupButton.innerHTML = '<i class="fas fa-phone-slash mr-2"></i> End Call';
+            });
+        }
+        
+        // Start call timer
+        function startCallTimer(startTime) {
+            stopCallTimer();
+            callStartTime = startTime ? new Date(startTime) : new Date();
+            callTimer = setInterval(updateCallDuration, 1000);
+            updateCallDuration();
+        }
+        
+        // Stop call timer
+        function stopCallTimer() {
+            if (callTimer) {
+                clearInterval(callTimer);
+                callTimer = null;
+            }
+        }
+        
+        // Update call duration display
+        function updateCallDuration() {
+            if (!callStartTime) return;
+            
+            const now = new Date();
+            const diff = Math.floor((now - callStartTime) / 1000);
+            
+            const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+            const seconds = (diff % 60).toString().padStart(2, '0');
+            
+            document.getElementById('callDuration').textContent = `${minutes}:${seconds}`;
+        }
+        
+        // Show success modal
+        function showSuccessModal() {
+            const modal = document.getElementById('successModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        
+        // Close success modal
+        function closeSuccessModal() {
+            const modal = document.getElementById('successModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+            } text-white`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

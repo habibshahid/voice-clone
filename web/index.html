@@ -99,6 +99,9 @@
 					<a href="dialer.html" class="tab-button px-1 py-4 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
                         <i class="fas fa-phone mr-2"></i>Dialer
                     </a>
+					<a href="recording_dialer.html" class="tab-button px-1 py-4 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300">
+                        <i class="fas fa-microphone mr-2"></i>Recording
+                    </a>
                 </nav>
             </div>
         </div>
@@ -400,7 +403,8 @@
     let recordingStartTime;
     let recordedSamples = [];
     let currentVoiceName = '';
-    
+    let selectedAsteriskRecordings = [];
+	
     // API Configuration
     const API_BASE_URL = window.location.origin;
     
@@ -1053,18 +1057,33 @@
     
     // Notification System
     function showNotification(message, type) {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg ${
-            type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white z-50`;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
-    }
+		const notification = document.createElement('div');
+		let bgColor = 'bg-blue-500'; // default for 'info'
+		
+		switch(type) {
+			case 'success':
+				bgColor = 'bg-green-500';
+				break;
+			case 'error':
+				bgColor = 'bg-red-500';
+				break;
+			case 'warning':
+				bgColor = 'bg-yellow-500';
+				break;
+			case 'info':
+				bgColor = 'bg-blue-500';
+				break;
+		}
+		
+		notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${bgColor} text-white max-w-md`;
+		notification.textContent = message;
+		
+		document.body.appendChild(notification);
+		
+		setTimeout(() => {
+			notification.remove();
+		}, 5000); // Show for 5 seconds for delete operations
+	}
 	
 	// Add these functions to your existing JavaScript code
 
@@ -2430,12 +2449,33 @@
 								<i class="fas fa-sync-alt mr-1"></i> Refresh
 							</button>
 							<span class="mx-2 text-gray-300">|</span>
-							<button id="importAllAsteriskList" class="text-xs text-green-600 hover:text-green-800">
+							<button id="selectAllAsterisk" class="text-xs text-purple-600 hover:text-purple-800">
+								<i class="fas fa-check-square mr-1"></i> Select All
+							</button>
+							<span class="mx-2 text-gray-300">|</span>
+							<button id="importSelectedAsteriskList" class="text-xs text-green-600 hover:text-green-800">
 								<i class="fas fa-file-import mr-1"></i> Import Selected
+							</button>
+							<span class="mx-2 text-gray-300">|</span>
+							<button id="deleteSelectedAsterisk" class="text-xs text-red-600 hover:text-red-800 hidden">
+								<i class="fas fa-trash-alt mr-1"></i> Delete Selected
 							</button>
 						</div>
 					</div>
-					
+					<!-- Selection Info Bar -->
+					<div id="selectionInfoBar" class="mb-3 p-2 bg-blue-50 rounded-md hidden">
+						<div class="flex justify-between items-center">
+							<span id="selectionCount" class="text-sm text-blue-800">0 recordings selected</span>
+							<div class="space-x-2">
+								<button id="clearSelection" class="text-xs text-blue-600 hover:text-blue-800">
+									<i class="fas fa-times mr-1"></i> Clear Selection
+								</button>
+								<button id="deleteAllAsterisk" class="text-xs text-red-600 hover:text-red-800">
+									<i class="fas fa-trash-alt mr-1"></i> Delete All Recordings
+								</button>
+							</div>
+						</div>
+					</div>
 					<!-- Loading indicator -->
 					<div id="asteriskListLoading" class="py-4 text-center text-gray-500">
 						<div class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
@@ -2534,6 +2574,27 @@
 				} else {
 					console.warn("Import button for Asterisk recordings not found");
 				}
+				
+				const selectAllBtn = document.getElementById('selectAllAsterisk');
+				const deleteSelectedBtn = document.getElementById('deleteSelectedAsterisk');
+				const clearSelectionBtn = document.getElementById('clearSelection');
+				const deleteAllBtn = document.getElementById('deleteAllAsterisk');
+				
+				if (selectAllBtn) {
+					selectAllBtn.addEventListener('click', selectAllAsteriskRecordings);
+				}
+				
+				if (deleteSelectedBtn) {
+					deleteSelectedBtn.addEventListener('click', deleteSelectedAsteriskRecordings);
+				}
+				
+				if (clearSelectionBtn) {
+					clearSelectionBtn.addEventListener('click', clearAsteriskSelection);
+				}
+				
+				if (deleteAllBtn) {
+					deleteAllBtn.addEventListener('click', deleteAllAsteriskRecordings);
+				}
 			}
 
 			// Show Asterisk recordings tab
@@ -2560,6 +2621,7 @@
 
 			// Load Asterisk recordings
 			function loadAsteriskRecordings() {
+				selectedAsteriskRecordings = [];
 				// Show loading state
 				document.getElementById('asteriskListLoading').classList.remove('hidden');
 				document.getElementById('asteriskListItems').innerHTML = '';
@@ -2627,6 +2689,13 @@
 						callDetails += `<span class="text-xs text-gray-500 block mt-1">Duration: ${formatDuration(recording.duration)}</span>`;
 					}
 					
+					// File size
+					let fileSizeDisplay = '';
+					if (recording.size) {
+						const sizeInMB = (recording.size / (1024 * 1024)).toFixed(2);
+						fileSizeDisplay = `<span class="text-xs text-gray-400 block mt-1">Size: ${sizeInMB} MB</span>`;
+					}
+					
 					listItem.innerHTML = `
 						<div class="flex-grow">
 							<div class="flex items-center">
@@ -2637,6 +2706,7 @@
 							</div>
 							${callDetails}
 							<span class="text-xs text-gray-400 block mt-1">${dateDisplay}</span>
+							${fileSizeDisplay}
 						</div>
 						<div class="flex space-x-2">
 							<button class="play-asterisk-recording text-blue-600 hover:text-blue-800" data-index="${index}">
@@ -2645,25 +2715,27 @@
 							<button class="import-asterisk-recording text-green-600 hover:text-green-800" data-index="${index}">
 								<i class="fas fa-file-import"></i>
 							</button>
+							<button class="delete-single-recording text-red-600 hover:text-red-800" data-index="${index}" data-id="${recording.id}" title="Delete">
+								<i class="fas fa-trash-alt"></i>
+							</button>
 						</div>
 					`;
 					
 					// Add event listeners
 					// Checkbox selection
-					listItem.querySelector('.select-recording').addEventListener('change', (e) => {
-						const recordingId = asteriskRecordings[index].id;
+					const checkbox = listItem.querySelector('.select-recording');
+					checkbox.addEventListener('change', (e) => {
+						const recordingId = recording.id;
 						if (e.target.checked) {
-							if (!selectedRecordings.includes(recordingId)) {
-								selectedRecordings.push(recordingId);
+							if (!selectedAsteriskRecordings.includes(recordingId)) {
+								selectedAsteriskRecordings.push(recordingId);
 							}
-							listItem.classList.add('bg-blue-50');
 						} else {
-							selectedRecordings = selectedRecordings.filter(id => id !== recordingId);
-							listItem.classList.remove('bg-blue-50');
+							selectedAsteriskRecordings = selectedAsteriskRecordings.filter(id => id !== recordingId);
 						}
+						updateSelectionUI();
 					});
 					
-					// Play button
 					listItem.querySelector('.play-asterisk-recording').addEventListener('click', () => {
 						playAsteriskRecording(index);
 					});
@@ -2673,7 +2745,147 @@
 						importAsteriskRecording(index);
 					});
 					
+					// Delete single recording button
+					listItem.querySelector('.delete-single-recording').addEventListener('click', () => {
+						deleteSingleAsteriskRecording(recording.id, recording.filename);
+					});
+					
 					recordingsList.appendChild(listItem);
+				});
+				
+				updateSelectionUI();
+			}
+
+			function updateSelectionUI() {
+				const selectionInfoBar = document.getElementById('selectionInfoBar');
+				const selectionCount = document.getElementById('selectionCount');
+				const deleteSelectedBtn = document.getElementById('deleteSelectedAsterisk');
+				
+				if (selectedAsteriskRecordings.length > 0) {
+					selectionInfoBar.classList.remove('hidden');
+					selectionCount.textContent = `${selectedAsteriskRecordings.length} recording${selectedAsteriskRecordings.length > 1 ? 's' : ''} selected`;
+					deleteSelectedBtn.classList.remove('hidden');
+				} else {
+					selectionInfoBar.classList.add('hidden');
+					deleteSelectedBtn.classList.add('hidden');
+				}
+			}
+
+			// Delete functions
+			function deleteSingleAsteriskRecording(recordingId, filename) {
+				if (!confirm(`Are you sure you want to delete "${filename}"?\n\nThis action cannot be undone.`)) {
+					return;
+				}
+				
+				// Show loading state
+				showNotification('Deleting recording...', 'info');
+				
+				fetch(`${API_BASE_URL}/api/asterisk/recording/${recordingId}`, {
+					method: 'DELETE'
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.status === 'success') {
+						showNotification(`Recording "${filename}" deleted successfully`, 'success');
+						
+						// Remove from selected recordings if it was selected
+						selectedAsteriskRecordings = selectedAsteriskRecordings.filter(id => id !== recordingId);
+						
+						// Refresh the list
+						loadAsteriskRecordings();
+					} else {
+						throw new Error(data.message || 'Failed to delete recording');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to delete recording:', error);
+					showNotification('Failed to delete recording: ' + error.message, 'error');
+				});
+			}
+
+			function deleteSelectedAsteriskRecordings() {
+				if (selectedAsteriskRecordings.length === 0) {
+					showNotification('No recordings selected', 'warning');
+					return;
+				}
+				
+				const count = selectedAsteriskRecordings.length;
+				if (!confirm(`Are you sure you want to delete ${count} selected recording${count > 1 ? 's' : ''}?\n\nThis action cannot be undone.`)) {
+					return;
+				}
+				
+				// Show loading state
+				showNotification(`Deleting ${count} recordings...`, 'info');
+				
+				fetch(`${API_BASE_URL}/api/asterisk/recordings/bulk`, {
+					method: 'DELETE',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify(selectedAsteriskRecordings)
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.status === 'success' || data.deleted_count > 0) {
+						showNotification(`Successfully deleted ${data.deleted_count} recordings${data.failed_count > 0 ? `, ${data.failed_count} failed` : ''}`, 'success');
+						
+						// Clear selection
+						selectedAsteriskRecordings = [];
+						
+						// Refresh the list
+						loadAsteriskRecordings();
+					} else {
+						throw new Error(data.message || 'Failed to delete recordings');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to delete recordings:', error);
+					showNotification('Failed to delete recordings: ' + error.message, 'error');
+				});
+			}
+
+			function deleteAllAsteriskRecordings() {
+				if (asteriskRecordings.length === 0) {
+					showNotification('No recordings found to delete', 'warning');
+					return;
+				}
+				
+				const count = asteriskRecordings.length;
+				if (!confirm(`⚠️ DANGER: Are you sure you want to delete ALL ${count} recordings?\n\nThis will permanently delete all Asterisk recordings and CANNOT be undone!\n\nType "DELETE ALL" below to confirm:`)) {
+					return;
+				}
+				
+				// Double confirmation
+				const confirmation = prompt('Type "DELETE ALL" to confirm (case sensitive):');
+				if (confirmation !== 'DELETE ALL') {
+					showNotification('Deletion cancelled - confirmation text did not match', 'info');
+					return;
+				}
+				
+				// Show loading state
+				showNotification(`Deleting all ${count} recordings...`, 'info');
+				
+				fetch(`${API_BASE_URL}/api/asterisk/recordings/all`, {
+					method: 'DELETE'
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.status === 'success' || data.deleted_count > 0) {
+						showNotification(`Successfully deleted ${data.deleted_count} recordings${data.failed_count > 0 ? `, ${data.failed_count} failed` : ''}`, 'success');
+						
+						// Clear selection and recordings
+						selectedAsteriskRecordings = [];
+						asteriskRecordings = [];
+						
+						// Refresh the list
+						loadAsteriskRecordings();
+					} else {
+						throw new Error(data.message || 'Failed to delete all recordings');
+					}
+				})
+				.catch(error => {
+					console.error('Failed to delete all recordings:', error);
+					showNotification('Failed to delete all recordings: ' + error.message, 'error');
 				});
 			}
 
@@ -2688,6 +2900,35 @@
 			function refreshAsteriskRecordings() {
 				loadAsteriskRecordings();
 			}
+
+			function selectAllAsteriskRecordings() {
+				const selectAllBtn = document.getElementById('selectAllAsterisk');
+				const isSelectingAll = !selectAllBtn.classList.contains('selecting-all');
+				
+				if (isSelectingAll) {
+					// Select all
+					selectedAsteriskRecordings = asteriskRecordings.map(r => r.id);
+					selectAllBtn.innerHTML = '<i class="fas fa-square mr-1"></i> Deselect All';
+					selectAllBtn.classList.add('selecting-all');
+				} else {
+					// Deselect all
+					selectedAsteriskRecordings = [];
+					selectAllBtn.innerHTML = '<i class="fas fa-check-square mr-1"></i> Select All';
+					selectAllBtn.classList.remove('selecting-all');
+				}
+				
+				// Re-render to update checkboxes
+				renderAsteriskRecordings();
+			}
+
+			function clearAsteriskSelection() {
+				selectedAsteriskRecordings = [];
+				const selectAllBtn = document.getElementById('selectAllAsterisk');
+				selectAllBtn.innerHTML = '<i class="fas fa-check-square mr-1"></i> Select All';
+				selectAllBtn.classList.remove('selecting-all');
+				renderAsteriskRecordings();
+			}
+
 
 			// Play Asterisk recording
 			function playAsteriskRecording(index) {

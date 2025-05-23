@@ -411,3 +411,119 @@ def trigger_voice_processing(voice_name: str):
         logger.info(f"Triggered voice processing for {voice_name}")
     except Exception as e:
         logger.error(f"Failed to trigger voice processing: {str(e)}")
+        
+# Add these endpoints to asterisk_api.py around line 280 (after existing endpoints)
+
+@router.delete("/recording/{recording_id}")
+async def delete_recording(recording_id: str):
+    """Delete a specific Asterisk recording"""
+    recording = get_recording_by_id(recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    
+    try:
+        # Delete the actual file
+        if os.path.exists(recording.path):
+            os.remove(recording.path)
+            logger.info(f"Deleted recording file: {recording.path}")
+        else:
+            logger.warning(f"Recording file not found: {recording.path}")
+        
+        return {
+            "status": "success",
+            "message": f"Recording {recording.filename} deleted successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting recording {recording_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete recording: {str(e)}")
+
+@router.delete("/recordings/bulk")
+async def delete_bulk_recordings(recording_ids: List[str]):
+    """Delete multiple Asterisk recordings"""
+    if not recording_ids:
+        raise HTTPException(status_code=400, detail="No recording IDs provided")
+    
+    try:
+        deleted_count = 0
+        failed_count = 0
+        failed_recordings = []
+        
+        for recording_id in recording_ids:
+            try:
+                recording = get_recording_by_id(recording_id)
+                if not recording:
+                    failed_count += 1
+                    failed_recordings.append(f"{recording_id} (not found)")
+                    continue
+                
+                # Delete the actual file
+                if os.path.exists(recording.path):
+                    os.remove(recording.path)
+                    deleted_count += 1
+                    logger.info(f"Deleted recording file: {recording.path}")
+                else:
+                    failed_count += 1
+                    failed_recordings.append(f"{recording.filename} (file not found)")
+                    
+            except Exception as e:
+                failed_count += 1
+                failed_recordings.append(f"{recording_id} (error: {str(e)})")
+                logger.error(f"Error deleting recording {recording_id}: {str(e)}")
+        
+        return {
+            "status": "success" if deleted_count > 0 else "error",
+            "message": f"Deleted {deleted_count} recordings, {failed_count} failed",
+            "deleted_count": deleted_count,
+            "failed_count": failed_count,
+            "failed_recordings": failed_recordings
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Bulk delete failed: {str(e)}")
+
+@router.delete("/recordings/all")
+async def delete_all_recordings():
+    """Delete all Asterisk recordings (use with caution!)"""
+    try:
+        recordings = scan_asterisk_recordings()
+        
+        if not recordings:
+            return {
+                "status": "success",
+                "message": "No recordings found to delete",
+                "deleted_count": 0
+            }
+        
+        deleted_count = 0
+        failed_count = 0
+        failed_recordings = []
+        
+        for recording in recordings:
+            try:
+                if os.path.exists(recording.path):
+                    os.remove(recording.path)
+                    deleted_count += 1
+                    logger.info(f"Deleted recording file: {recording.path}")
+                else:
+                    failed_count += 1
+                    failed_recordings.append(f"{recording.filename} (file not found)")
+                    
+            except Exception as e:
+                failed_count += 1
+                failed_recordings.append(f"{recording.filename} (error: {str(e)})")
+                logger.error(f"Error deleting recording {recording.path}: {str(e)}")
+        
+        return {
+            "status": "success" if deleted_count > 0 else "error",
+            "message": f"Deleted {deleted_count} recordings, {failed_count} failed",
+            "deleted_count": deleted_count,
+            "failed_count": failed_count,
+            "failed_recordings": failed_recordings
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting all recordings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete all recordings: {str(e)}")
+

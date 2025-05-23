@@ -1,0 +1,5 @@
+# .htaccess file
+AuthType Basic
+AuthName "Voice Cloning System"
+AuthUserFile /path/to/.htpasswd
+Require valid-user
