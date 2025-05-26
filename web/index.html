@@ -438,8 +438,8 @@
         checkSystemHealth();
         
         // Set up periodic health check and voice status refresh
-        setInterval(checkSystemHealth, 30000);
-        setInterval(loadVoices, 10000); // Refresh voice list every 10 seconds
+        setInterval(checkSystemHealth, 60000);
+        setInterval(loadVoices, 30000); // Refresh voice list every 10 seconds
     });
     
 	const originalFetch = window.fetch;
@@ -575,23 +575,25 @@
 			return;
 		}
 		
-		// Find active voice to check its TTS service status
+		// Find active voice to check its TTS service status - but only check ONCE
 		const activeVoice = voices.find(voice => voice.status === 'active');
 		
-		// Check TTS service health if there's an active voice
-		if (activeVoice && !activeVoice.ttsReady) {
+		// Only check health once per rendering and only if not already checked
+		if (activeVoice && !activeVoice.ttsReady && !activeVoice.isChecking) {
+			activeVoice.isChecking = true; // Set flag to prevent multiple checks
+			
 			checkTTSServiceHealth(activeVoice.name)
 				.then(isReady => {
 					if (isReady) {
 						// Update the voice status and re-render
 						activeVoice.ttsReady = true;
+						activeVoice.isChecking = false;
 						renderVoicesTable(voices);
-					} else {
-						// If not ready, schedule another check in 5 seconds
-						setTimeout(() => {
-							renderVoicesTable(voices);
-						}, 5000);
 					}
+				})
+				.catch(() => {
+					// Reset the checking flag on error
+					activeVoice.isChecking = false;
 				});
 		}
 		
@@ -775,8 +777,10 @@
 						// Show a message that TTS is initializing
 						showNotification('Voice activated, TTS service initializing...', 'success');
 						
-						// Start checking health periodically
-						checkVoiceReadiness(voiceName);
+						// Start checking health after a brief delay to allow service to start
+						setTimeout(() => {
+							checkVoiceReadiness(voiceName);
+						}, 3000);
 					}
 				});
 			})
@@ -805,7 +809,7 @@
 						showNotification('TTS service initialization took longer than expected', 'warning');
 					}
 				});
-		}, 5000); // Check every 5 seconds
+		}, 5000); // Check every 5 seconds instead of immediately
 	}
 
     function deactivateVoice(voiceName) {
